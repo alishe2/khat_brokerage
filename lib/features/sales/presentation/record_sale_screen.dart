@@ -38,19 +38,19 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       final results = await Future.wait([
         _supabase
             .from('farmers')
-            .select('id, farmer_code, full_name')
+            .select('id, farmer_code, full_name, phone')
             .eq('is_active', true)
             .order('full_name'),
 
         _supabase
             .from('sellers')
-            .select('id, seller_code, full_name')
+            .select('id, seller_code, full_name, phone')
             .eq('is_active', true)
             .order('full_name'),
 
         _supabase
             .from('buyers')
-            .select('id, buyer_code, group_name, is_magala')
+            .select('id, buyer_code, group_name, phone, is_magala')
             .eq('is_active', true)
             .order('group_name'),
       ]);
@@ -58,14 +58,9 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       if (!mounted) return;
 
       setState(() {
-        _farmers =
-            List<Map<String, dynamic>>.from(results[0]);
-
-        _sellers =
-            List<Map<String, dynamic>>.from(results[1]);
-
-        _buyers =
-            List<Map<String, dynamic>>.from(results[2]);
+        _farmers = List<Map<String, dynamic>>.from(results[0]);
+        _sellers = List<Map<String, dynamic>>.from(results[1]);
+        _buyers = List<Map<String, dynamic>>.from(results[2]);
 
         _isLoading = false;
       });
@@ -79,6 +74,243 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       _showMessage('Could not load data: $e');
     }
   }
+
+  // ------------------------------------------------------------
+  // SEARCHABLE SELECTOR
+  // ------------------------------------------------------------
+
+  Future<String?> _showSearchSelector({
+    required String title,
+    required List<Map<String, dynamic>> items,
+    required String nameKey,
+    required String codeKey,
+    bool showMagala = false,
+  }) async {
+    final searchController = TextEditingController();
+
+    List<Map<String, dynamic>> filteredItems = List.from(items);
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void performSearch(String query) {
+              final search = query.trim().toLowerCase();
+
+              setSheetState(() {
+                filteredItems = items.where((item) {
+                  final name = (item[nameKey] ?? '').toString().toLowerCase();
+
+                  final code = (item[codeKey] ?? '').toString().toLowerCase();
+
+                  final phone = (item['phone'] ?? '').toString().toLowerCase();
+
+                  final isMagala = showMagala && item['is_magala'] == true;
+
+                  if (search.isEmpty) {
+                    return true;
+                  }
+
+                  return name.contains(search) ||
+                      code.contains(search) ||
+                      phone.contains(search) ||
+                      (isMagala && 'magala'.contains(search));
+                }).toList();
+              });
+            }
+
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.80,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Select $title',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        onChanged: performSearch,
+                        decoration: InputDecoration(
+                          labelText: 'Search $title',
+                          hintText: 'Name, code, or phone',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    searchController.clear();
+                                    performSearch('');
+                                  },
+                                  icon: const Icon(Icons.clear),
+                                ),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Expanded(
+                        child: filteredItems.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.search_off,
+                                      size: 48,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'No $title found',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filteredItems.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final item = filteredItems[index];
+
+                                  final name =
+                                      item[nameKey]?.toString() ?? 'Unknown';
+
+                                  final code = item[codeKey]?.toString() ?? '';
+
+                                  final phone = item['phone']?.toString() ?? '';
+
+                                  final isMagala =
+                                      showMagala && item['is_magala'] == true;
+
+                                  return ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 4,
+                                    ),
+
+                                    leading: CircleAvatar(
+                                      child: Icon(
+                                        isMagala
+                                            ? Icons.storefront_outlined
+                                            : Icons.person_outline,
+                                      ),
+                                    ),
+
+                                    title: Text(
+                                      isMagala ? '$name (Magala)' : name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (code.isNotEmpty) Text(code),
+                                        if (phone.isNotEmpty) Text(phone),
+                                      ],
+                                    ),
+
+                                    onTap: () {
+                                      Navigator.of(
+                                        sheetContext,
+                                      ).pop(item['id'].toString());
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      searchController.dispose();
+    });
+
+    return result;
+  }
+
+  // ------------------------------------------------------------
+  // SELECTED NAME HELPERS
+  // ------------------------------------------------------------
+
+  String _farmerDisplayName() {
+    if (_selectedFarmerId == null) {
+      return 'Select farmer';
+    }
+
+    for (final farmer in _farmers) {
+      if (farmer['id'].toString() == _selectedFarmerId) {
+        return '${farmer['full_name']} (${farmer['farmer_code']})';
+      }
+    }
+
+    return 'Select farmer';
+  }
+
+  String _sellerDisplayName() {
+    if (_selectedSellerId == null) {
+      return 'Select seller';
+    }
+
+    for (final seller in _sellers) {
+      if (seller['id'].toString() == _selectedSellerId) {
+        return '${seller['full_name']} (${seller['seller_code']})';
+      }
+    }
+
+    return 'Select seller';
+  }
+
+  String _buyerDisplayName(String? buyerId) {
+    if (buyerId == null) {
+      return 'Select buyer';
+    }
+
+    for (final buyer in _buyers) {
+      if (buyer['id'].toString() == buyerId) {
+        final isMagala = buyer['is_magala'] == true;
+
+        if (isMagala) {
+          return '${buyer['group_name']} (Magala)';
+        }
+
+        return '${buyer['group_name']} (${buyer['buyer_code']})';
+      }
+    }
+
+    return 'Select buyer';
+  }
+
+  // ------------------------------------------------------------
+  // BUYERS
+  // ------------------------------------------------------------
 
   void _addBuyer() {
     setState(() {
@@ -114,31 +346,26 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     });
   }
 
-  void _removePriceLine(
-    int buyerIndex,
-    int lineIndex,
-  ) {
-    final line =
-        _saleBuyers[buyerIndex]['lines'][lineIndex];
+  void _removePriceLine(int buyerIndex, int lineIndex) {
+    final line = _saleBuyers[buyerIndex]['lines'][lineIndex];
 
     line['bundle_count'].dispose();
     line['price_per_bundle'].dispose();
 
     setState(() {
-      _saleBuyers[buyerIndex]['lines']
-          .removeAt(lineIndex);
+      _saleBuyers[buyerIndex]['lines'].removeAt(lineIndex);
     });
   }
+
+  // ------------------------------------------------------------
+  // CALCULATIONS
+  // ------------------------------------------------------------
 
   int _buyerBundles(Map<String, dynamic> buyer) {
     int total = 0;
 
     for (final line in buyer['lines']) {
-      total +=
-          int.tryParse(
-                line['bundle_count'].text.trim(),
-              ) ??
-              0;
+      total += int.tryParse(line['bundle_count'].text.trim()) ?? 0;
     }
 
     return total;
@@ -148,17 +375,9 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     double total = 0;
 
     for (final line in buyer['lines']) {
-      final bundles =
-          int.tryParse(
-                line['bundle_count'].text.trim(),
-              ) ??
-              0;
+      final bundles = int.tryParse(line['bundle_count'].text.trim()) ?? 0;
 
-      final price =
-          double.tryParse(
-                line['price_per_bundle'].text.trim(),
-              ) ??
-              0;
+      final price = double.tryParse(line['price_per_bundle'].text.trim()) ?? 0;
 
       total += bundles * price;
     }
@@ -191,39 +410,19 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
   }
 
   double get _farmerAmount {
-    return (_totalSales * 0.90) -
-        _advanceLoan;
+    return (_totalSales * 0.90) - _advanceLoan;
   }
 
   double get _advanceLoan {
-    return double.tryParse(
-          _advanceLoanController.text.trim(),
-        ) ??
-        0;
+    return double.tryParse(_advanceLoanController.text.trim()) ?? 0;
   }
 
-  @override
-  void dispose() {
-    _totalBundlesController.dispose();
-    _advanceLoanController.dispose();
-
-    for (final buyer in _saleBuyers) {
-      buyer['paid_amount'].dispose();
-
-      for (final line in buyer['lines']) {
-        line['bundle_count'].dispose();
-        line['price_per_bundle'].dispose();
-      }
-    }
-
-    super.dispose();
-  }
+  // ------------------------------------------------------------
+  // SAVE SALE
+  // ------------------------------------------------------------
 
   Future<void> _saveSale() async {
-    final enteredBundles =
-        int.tryParse(
-          _totalBundlesController.text.trim(),
-        );
+    final enteredBundles = int.tryParse(_totalBundlesController.text.trim());
 
     if (_selectedFarmerId == null) {
       _showMessage('Select a farmer.');
@@ -235,18 +434,13 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       return;
     }
 
-    if (enteredBundles == null ||
-        enteredBundles <= 0) {
-      _showMessage(
-        'Enter a valid total Kilo.',
-      );
+    if (enteredBundles == null || enteredBundles <= 0) {
+      _showMessage('Enter a valid total Kilo.');
       return;
     }
 
     if (_saleBuyers.isEmpty) {
-      _showMessage(
-        'Add at least one buyer.',
-      );
+      _showMessage('Add at least one buyer.');
       return;
     }
 
@@ -259,68 +453,44 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     }
 
     if (_totalSales <= 0) {
-      _showMessage(
-        'Total sales must be greater than zero.',
-      );
+      _showMessage('Total sales must be greater than zero.');
       return;
     }
 
     if (_advanceLoan < 0) {
-      _showMessage(
-        'Advance loan cannot be negative.',
-      );
+      _showMessage('Advance loan cannot be negative.');
       return;
     }
 
-    if (_advanceLoan >
-        (_totalSales * 0.90)) {
-      _showMessage(
-        'Advance loan cannot exceed farmer amount.',
-      );
+    if (_advanceLoan > (_totalSales * 0.90)) {
+      _showMessage('Advance loan cannot exceed farmer amount.');
       return;
     }
 
-    for (int i = 0;
-        i < _saleBuyers.length;
-        i++) {
+    for (int i = 0; i < _saleBuyers.length; i++) {
       final buyer = _saleBuyers[i];
 
       if (buyer['buyer_id'] == null) {
-        _showMessage(
-          'Select Buyer ${i + 1}.',
-        );
+        _showMessage('Select Buyer ${i + 1}.');
         return;
       }
 
       if (buyer['lines'].isEmpty) {
-        _showMessage(
-          'Add at least one price line for Buyer ${i + 1}.',
-        );
+        _showMessage('Add at least one price line for Buyer ${i + 1}.');
         return;
       }
 
-      final buyerTotal =
-          _buyerTotal(buyer);
+      final buyerTotal = _buyerTotal(buyer);
 
-      final paid =
-          double.tryParse(
-                buyer['paid_amount']
-                    .text
-                    .trim(),
-              ) ??
-              0;
+      final paid = double.tryParse(buyer['paid_amount'].text.trim()) ?? 0;
 
       if (paid < 0) {
-        _showMessage(
-          'Paid amount cannot be negative.',
-        );
+        _showMessage('Paid amount cannot be negative.');
         return;
       }
 
       if (paid > buyerTotal) {
-        _showMessage(
-          'Paid amount cannot exceed buyer total.',
-        );
+        _showMessage('Paid amount cannot exceed buyer total.');
         return;
       }
     }
@@ -330,51 +500,32 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     });
 
     try {
-      final buyersJson =
-          _saleBuyers.map((buyer) {
+      final buyersJson = _saleBuyers.map((buyer) {
         return {
           'buyer_id': buyer['buyer_id'],
-          'paid_amount':
-              double.tryParse(
-                    buyer['paid_amount']
-                        .text
-                        .trim(),
-                  ) ??
-                  0,
-          'lines':
-              buyer['lines'].map((line) {
+
+          'paid_amount': double.tryParse(buyer['paid_amount'].text.trim()) ?? 0,
+
+          'lines': buyer['lines'].map((line) {
             return {
-              'bundle_count':
-                  int.parse(
-                    line['bundle_count']
-                        .text
-                        .trim(),
-                  ),
-              'price_per_bundle':
-                  double.parse(
-                    line['price_per_bundle']
-                        .text
-                        .trim(),
-                  ),
+              'bundle_count': int.parse(line['bundle_count'].text.trim()),
+
+              'price_per_bundle': double.parse(
+                line['price_per_bundle'].text.trim(),
+              ),
             };
           }).toList(),
         };
       }).toList();
 
-      final result =
-          await _supabase.rpc(
+      final result = await _supabase.rpc(
         'record_sale',
         params: {
-          'p_farmer_id':
-              _selectedFarmerId,
-          'p_seller_id':
-              _selectedSellerId,
-          'p_total_bundles':
-              enteredBundles,
-          'p_advance_loan':
-              _advanceLoan,
-          'p_buyers':
-              buyersJson,
+          'p_farmer_id': _selectedFarmerId,
+          'p_seller_id': _selectedSellerId,
+          'p_total_bundles': enteredBundles,
+          'p_advance_loan': _advanceLoan,
+          'p_buyers': buyersJson,
         },
       );
 
@@ -388,9 +539,7 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        'Could not save sale: $e',
-      );
+      _showMessage('Could not save sale: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -400,42 +549,45 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     }
   }
 
-  Future<void> _showSaleSuccess(
-    dynamic result,
-  ) async {
-    final data =
-        Map<String, dynamic>.from(result);
+  // ------------------------------------------------------------
+  // SUCCESS DIALOG
+  // ------------------------------------------------------------
+
+  Future<void> _showSaleSuccess(dynamic result) async {
+    final data = Map<String, dynamic>.from(result);
 
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
-            'Sale Recorded Successfully',
-          ),
+          title: const Text('Sale Recorded Successfully'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Transaction: '
                 '${data['transaction_code']}',
               ),
+
               const SizedBox(height: 12),
+
               Text(
                 'Total Sales: '
                 '${data['total_sales']} Birr',
               ),
+
               Text(
                 'Commission: '
                 '${data['commission']} Birr',
               ),
+
               Text(
                 'Farmer Amount: '
                 '${data['farmer_amount']} Birr',
               ),
+
               Text(
                 'New Farmer Balance: '
                 '${data['new_farmer_balance']} Birr',
@@ -456,108 +608,153 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Record Sale'),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: const Text('Record Sale')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Record Sale'),
-      ),
+      appBar: AppBar(title: const Text('Record Sale')),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
+
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+
           children: [
             const Text(
               'Sale Information',
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 16),
 
-            DropdownButtonFormField<String>(
-              value: _selectedFarmerId,
-              decoration: const InputDecoration(
-                labelText: 'Farmer',
-                prefixIcon:
-                    Icon(Icons.agriculture_outlined),
-                border: OutlineInputBorder(),
-              ),
-              items: _farmers.map((farmer) {
-                return DropdownMenuItem<String>(
-                  value: farmer['id'],
-                  child: Text(
-                    '${farmer['full_name']} '
-                    '(${farmer['farmer_code']})',
-                  ),
+            // --------------------------------------------------
+            // FARMER
+            // --------------------------------------------------
+            InkWell(
+              onTap: () async {
+                final selectedId = await _showSearchSelector(
+                  title: 'Farmer',
+                  items: _farmers,
+                  nameKey: 'full_name',
+                  codeKey: 'farmer_code',
                 );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedFarmerId = value;
-                });
+
+                if (selectedId != null && mounted) {
+                  setState(() {
+                    _selectedFarmerId = selectedId;
+                  });
+                }
               },
+
+              borderRadius: BorderRadius.circular(4),
+
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Farmer',
+                  prefixIcon: Icon(Icons.agriculture_outlined),
+                  border: OutlineInputBorder(),
+                ),
+
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _farmerDisplayName(),
+                        style: TextStyle(
+                          color: _selectedFarmerId == null
+                              ? Colors.grey.shade600
+                              : null,
+                        ),
+                      ),
+                    ),
+
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 14),
 
-            DropdownButtonFormField<String>(
-              value: _selectedSellerId,
-              decoration: const InputDecoration(
-                labelText: 'Seller',
-                prefixIcon:
-                    Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-              items: _sellers.map((seller) {
-                return DropdownMenuItem<String>(
-                  value: seller['id'],
-                  child: Text(
-                    '${seller['full_name']} '
-                    '(${seller['seller_code']})',
-                  ),
+            // --------------------------------------------------
+            // SELLER
+            // --------------------------------------------------
+            InkWell(
+              onTap: () async {
+                final selectedId = await _showSearchSelector(
+                  title: 'Seller',
+                  items: _sellers,
+                  nameKey: 'full_name',
+                  codeKey: 'seller_code',
                 );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedSellerId = value;
-                });
+
+                if (selectedId != null && mounted) {
+                  setState(() {
+                    _selectedSellerId = selectedId;
+                  });
+                }
               },
+
+              borderRadius: BorderRadius.circular(4),
+
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Seller',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
+
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _sellerDisplayName(),
+                        style: TextStyle(
+                          color: _selectedSellerId == null
+                              ? Colors.grey.shade600
+                              : null,
+                        ),
+                      ),
+                    ),
+
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 14),
 
+            // --------------------------------------------------
+            // TOTAL KILO
+            // --------------------------------------------------
             TextField(
-              controller:
-                  _totalBundlesController,
+              controller: _totalBundlesController,
+
               keyboardType: TextInputType.number,
+
               decoration: const InputDecoration(
                 labelText: 'Total Kilo',
-                prefixIcon:
-                    Icon(Icons.inventory_2_outlined),
+                prefixIcon: Icon(Icons.inventory_2_outlined),
                 border: OutlineInputBorder(),
               ),
+
               onChanged: (_) {
                 setState(() {});
               },
@@ -565,63 +762,61 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
 
             const SizedBox(height: 28),
 
+            // --------------------------------------------------
+            // BUYERS HEADER
+            // --------------------------------------------------
             Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
               children: [
                 const Text(
                   'Buyers',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
                 ),
+
                 Text(
                   'Kilo: $_calculatedBundles',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ],
             ),
 
             const SizedBox(height: 12),
 
-            ...List.generate(
-              _saleBuyers.length,
-              (buyerIndex) {
-                return _buildBuyerCard(
-                  buyerIndex,
-                );
-              },
-            ),
+            // --------------------------------------------------
+            // BUYER CARDS
+            // --------------------------------------------------
+            ...List.generate(_saleBuyers.length, (buyerIndex) {
+              return _buildBuyerCard(buyerIndex);
+            }),
 
             OutlinedButton.icon(
               onPressed: _addBuyer,
-              icon: const Icon(
-                Icons.person_add_outlined,
-              ),
-              label: const Text(
-                'Add Buyer',
-              ),
+
+              icon: const Icon(Icons.person_add_outlined),
+
+              label: const Text('Add Buyer'),
             ),
 
             const SizedBox(height: 24),
 
+            // --------------------------------------------------
+            // ADVANCE LOAN
+            // --------------------------------------------------
             TextField(
-              controller:
-                  _advanceLoanController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
+              controller: _advanceLoanController,
+
+              keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+
               decoration: const InputDecoration(
                 labelText: 'Advance Loan',
                 suffixText: 'Birr',
-                prefixIcon:
-                    Icon(Icons.money_off_outlined),
+                prefixIcon: Icon(Icons.money_off_outlined),
                 border: OutlineInputBorder(),
               ),
+
               onChanged: (_) {
                 setState(() {});
               },
@@ -629,33 +824,35 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
 
             const SizedBox(height: 20),
 
+            // --------------------------------------------------
+            // SUMMARY
+            // --------------------------------------------------
             _buildSummary(),
 
             const SizedBox(height: 24),
 
+            // --------------------------------------------------
+            // SAVE SALE
+            // --------------------------------------------------
             SizedBox(
               height: 54,
+
               child: FilledButton.icon(
-                onPressed:
-                    _isSaving ? null : _saveSale,
-                icon: const Icon(
-                  Icons.save_outlined,
-                ),
+                onPressed: _isSaving ? null : _saveSale,
+
+                icon: const Icon(Icons.save_outlined),
+
                 label: _isSaving
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text(
                         'SAVE SALE',
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
               ),
@@ -666,172 +863,181 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     );
   }
 
+  // ------------------------------------------------------------
+  // BUYER CARD
+  // ------------------------------------------------------------
+
   Widget _buildBuyerCard(int buyerIndex) {
-    final buyer =
-        _saleBuyers[buyerIndex];
+    final buyer = _saleBuyers[buyerIndex];
 
     return Card(
-      margin: const EdgeInsets.only(
-        bottom: 16,
-      ),
+      margin: const EdgeInsets.only(bottom: 16),
+
       child: Padding(
         padding: const EdgeInsets.all(14),
+
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+
           children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
                     'Buyer ${buyerIndex + 1}',
+
                     style: const TextStyle(
                       fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+
                 IconButton(
-                  onPressed: () =>
-                      _removeBuyer(
-                    buyerIndex,
-                  ),
-                  icon: const Icon(
-                    Icons.delete_outline,
-                  ),
+                  onPressed: () => _removeBuyer(buyerIndex),
+
+                  icon: const Icon(Icons.delete_outline),
                 ),
               ],
             ),
 
-            DropdownButtonFormField<String>(
-              value: buyer['buyer_id'],
-              decoration: const InputDecoration(
-                labelText: 'Buyer Group',
-                border: OutlineInputBorder(),
-              ),
-              items: _buyers.map((item) {
-                final magala =
-                    item['is_magala'] == true;
-
-                return DropdownMenuItem<String>(
-                  value: item['id'],
-                  child: Text(
-                    magala
-                        ? '${item['group_name']} (Magala)'
-                        : '${item['group_name']} '
-                          '(${item['buyer_code']})',
-                  ),
+            // ------------------------------------------------
+            // SEARCHABLE BUYER
+            // ------------------------------------------------
+            InkWell(
+              onTap: () async {
+                final selectedId = await _showSearchSelector(
+                  title: 'Buyer',
+                  items: _buyers,
+                  nameKey: 'group_name',
+                  codeKey: 'buyer_code',
+                  showMagala: true,
                 );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  buyer['buyer_id'] = value;
-                });
+
+                if (selectedId != null && mounted) {
+                  setState(() {
+                    buyer['buyer_id'] = selectedId;
+                  });
+                }
               },
+
+              borderRadius: BorderRadius.circular(4),
+
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Buyer Group',
+                  prefixIcon: Icon(Icons.groups_outlined),
+                  border: OutlineInputBorder(),
+                ),
+
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _buyerDisplayName(buyer['buyer_id']),
+
+                        style: TextStyle(
+                          color: buyer['buyer_id'] == null
+                              ? Colors.grey.shade600
+                              : null,
+                        ),
+                      ),
+                    ),
+
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 14),
 
-            ...List.generate(
-              buyer['lines'].length,
-              (lineIndex) {
-                final line =
-                    buyer['lines'][lineIndex];
+            // ------------------------------------------------
+            // PRICE LINES
+            // ------------------------------------------------
+            ...List.generate(buyer['lines'].length, (lineIndex) {
+              final line = buyer['lines'][lineIndex];
 
-                return Padding(
-                  padding:
-                      const EdgeInsets.only(
-                    bottom: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller:
-                              line['bundle_count'],
-                          keyboardType:
-                              TextInputType.number,
-                          decoration:
-                              const InputDecoration(
-                            labelText: 'Kilo',
-                            border:
-                                OutlineInputBorder(),
-                          ),
-                          onChanged: (_) {
-                            setState(() {});
-                          },
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: line['bundle_count'],
+
+                        keyboardType: TextInputType.number,
+
+                        decoration: const InputDecoration(
+                          labelText: 'Kilo',
+                          border: OutlineInputBorder(),
                         ),
+
+                        onChanged: (_) {
+                          setState(() {});
+                        },
                       ),
+                    ),
 
-                      const SizedBox(width: 8),
+                    const SizedBox(width: 8),
 
-                      Expanded(
-                        child: TextField(
-                          controller:
-                              line['price_per_bundle'],
-                          keyboardType:
-                              const TextInputType
-                                  .numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration:
-                              const InputDecoration(
-                            labelText:
-                                'Price / Kilo',
-                            border:
-                                OutlineInputBorder(),
-                          ),
-                          onChanged: (_) {
-                            setState(() {});
-                          },
+                    Expanded(
+                      child: TextField(
+                        controller: line['price_per_bundle'],
+
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
+
+                        decoration: const InputDecoration(
+                          labelText: 'Price / Kilo',
+                          border: OutlineInputBorder(),
+                        ),
+
+                        onChanged: (_) {
+                          setState(() {});
+                        },
                       ),
+                    ),
 
-                      IconButton(
-                        onPressed: () =>
-                            _removePriceLine(
-                          buyerIndex,
-                          lineIndex,
-                        ),
-                        icon: const Icon(
-                          Icons
-                              .remove_circle_outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                    IconButton(
+                      onPressed: () => _removePriceLine(buyerIndex, lineIndex),
+
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                  ],
+                ),
+              );
+            }),
 
             TextButton.icon(
-              onPressed: () =>
-                  _addPriceLine(
-                buyerIndex,
-              ),
+              onPressed: () => _addPriceLine(buyerIndex),
+
               icon: const Icon(Icons.add),
-              label: const Text(
-                'Add Price Line',
-              ),
+
+              label: const Text('Add Price Line'),
             ),
 
             const SizedBox(height: 8),
 
+            // ------------------------------------------------
+            // PAID AMOUNT
+            // ------------------------------------------------
             TextField(
-              controller:
-                  buyer['paid_amount'],
-              keyboardType:
-                  const TextInputType
-                      .numberWithOptions(
+              controller: buyer['paid_amount'],
+
+              keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration:
-                  const InputDecoration(
+
+              decoration: const InputDecoration(
                 labelText: 'Paid Amount',
                 suffixText: 'Birr',
+                prefixIcon: Icon(Icons.payments_outlined),
                 border: OutlineInputBorder(),
               ),
+
               onChanged: (_) {
                 setState(() {});
               },
@@ -839,24 +1045,22 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
 
             const SizedBox(height: 10),
 
+            // ------------------------------------------------
+            // BUYER TOTAL
+            // ------------------------------------------------
             Text(
               'Buyer Total: '
               '${_buyerTotal(buyer).toStringAsFixed(2)} Birr',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
 
+            // ------------------------------------------------
+            // BUYER UNPAID
+            // ------------------------------------------------
             Text(
               'Unpaid: '
-              '${(_buyerTotal(buyer) -
-                      (double.tryParse(
-                            buyer['paid_amount']
-                                .text
-                                .trim(),
-                          ) ??
-                          0))
-                  .toStringAsFixed(2)} Birr',
+              '${(_buyerTotal(buyer) - (double.tryParse(buyer['paid_amount'].text.trim()) ?? 0)).toStringAsFixed(2)} Birr',
             ),
           ],
         ),
@@ -864,33 +1068,41 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     );
   }
 
+  // ------------------------------------------------------------
+  // SUMMARY
+  // ------------------------------------------------------------
+
   Widget _buildSummary() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
+
         child: Column(
           children: [
-            _summaryRow(
-              'Total Kilo',
-              '$_calculatedBundles',
-            ),
+            _summaryRow('Total Kilo', '$_calculatedBundles'),
+
             _summaryRow(
               'Total Sales',
               '${_totalSales.toStringAsFixed(2)} Birr',
             ),
+
             _summaryRow(
               'Commission (10%)',
               '${_commission.toStringAsFixed(2)} Birr',
             ),
+
             _summaryRow(
               'Farmer Amount (90%)',
               '${(_totalSales * 0.90).toStringAsFixed(2)} Birr',
             ),
+
             _summaryRow(
               'Advance Loan',
               '${_advanceLoan.toStringAsFixed(2)} Birr',
             ),
+
             const Divider(),
+
             _summaryRow(
               'Final Farmer Amount',
               '${_farmerAmount.toStringAsFixed(2)} Birr',
@@ -902,33 +1114,22 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     );
   }
 
-  Widget _summaryRow(
-    String label,
-    String value, {
-    bool bold = false,
-  }) {
+  Widget _summaryRow(String label, String value, {bool bold = false}) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 5),
+
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontWeight:
-                  bold ? FontWeight.bold : null,
-            ),
+            style: TextStyle(fontWeight: bold ? FontWeight.bold : null),
           ),
+
           Text(
             value,
-            style: TextStyle(
-              fontWeight:
-                  bold ? FontWeight.bold : null,
-            ),
+            style: TextStyle(fontWeight: bold ? FontWeight.bold : null),
           ),
         ],
       ),
