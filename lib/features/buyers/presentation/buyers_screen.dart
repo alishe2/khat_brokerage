@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'buyer_profile_screen.dart';
 
 class BuyersScreen extends StatefulWidget {
   const BuyersScreen({super.key});
@@ -145,9 +146,9 @@ class _BuyersScreenState extends State<BuyersScreen> {
 
                   Navigator.of(dialogContext).pop(true);
                 } catch (e) {
-                  if (!context.mounted) return;
+                  if (!dialogContext.mounted) return;
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(content: Text('Could not add buyer: $e')),
                   );
                 }
@@ -232,6 +233,7 @@ class _BuyersScreenState extends State<BuyersScreen> {
                                           : Icons.groups_outlined,
                                     ),
                                   ),
+
                                   title: Row(
                                     children: [
                                       Expanded(
@@ -246,6 +248,7 @@ class _BuyersScreenState extends State<BuyersScreen> {
                                         const Chip(label: Text('MAGALA')),
                                     ],
                                   ),
+
                                   subtitle: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -254,22 +257,47 @@ class _BuyersScreenState extends State<BuyersScreen> {
                                       Text(buyer['phone'] ?? 'No phone number'),
                                     ],
                                   ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
+
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Text(
-                                        'Debt',
-                                        style: TextStyle(fontSize: 12),
+                                      Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          const Text(
+                                            'Debt',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                          Text(
+                                            '$debt Birr',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      Text(
-                                        '$debt Birr',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.chevron_right, size: 20),
                                     ],
                                   ),
+
+                                  // Open Buyer Profile
+                                  onTap: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            BuyerProfileScreen(buyer: buyer),
+                                      ),
+                                    );
+
+                                    // Refresh the buyer list when returning.
+                                    if (mounted) {
+                                      await _loadBuyers();
+                                    }
+                                  },
                                 ),
                               );
                             },

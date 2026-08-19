@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'seller_profile_screen.dart';
 
 class SellersScreen extends StatefulWidget {
   const SellersScreen({super.key});
@@ -143,9 +144,9 @@ class _SellersScreenState extends State<SellersScreen> {
 
                   Navigator.of(dialogContext).pop(true);
                 } catch (e) {
-                  if (!context.mounted) return;
+                  if (!dialogContext.mounted) return;
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(content: Text('Could not add seller: $e')),
                   );
                 }
@@ -222,12 +223,14 @@ class _SellersScreenState extends State<SellersScreen> {
                                   leading: const CircleAvatar(
                                     child: Icon(Icons.person_outline),
                                   ),
+
                                   title: Text(
                                     seller['full_name'] ?? 'Unknown',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
+
                                   subtitle: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -238,6 +241,26 @@ class _SellersScreenState extends State<SellersScreen> {
                                       ),
                                     ],
                                   ),
+
+                                  trailing: const Icon(
+                                    Icons.chevron_right,
+                                    size: 20,
+                                  ),
+
+                                  // Open Seller Profile
+                                  onTap: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            SellerProfileScreen(seller: seller),
+                                      ),
+                                    );
+
+                                    // Refresh the seller list after returning.
+                                    if (mounted) {
+                                      await _loadSellers();
+                                    }
+                                  },
                                 ),
                               );
                             },

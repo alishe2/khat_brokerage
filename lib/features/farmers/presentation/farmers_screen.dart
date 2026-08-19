@@ -26,7 +26,10 @@ class _FarmersScreenState extends State<FarmersScreen> {
     try {
       final data = await _supabase
           .from('farmers')
-          .select('id, farmer_code, full_name, phone, current_balance')
+          .select(
+            'id, farmer_code, full_name, phone, current_balance, is_active',
+          )
+          .eq('is_active', true)
           .order('full_name');
 
       if (!mounted) return;
@@ -94,13 +97,18 @@ class _FarmersScreenState extends State<FarmersScreen> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
 
-                            onTap: () {
-                              Navigator.of(context).push(
+                            onTap: () async {
+                              await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       FarmerProfileScreen(farmer: farmer),
                                 ),
                               );
+
+                              // Refresh the list after returning from the profile.
+                              if (mounted) {
+                                await _loadFarmers();
+                              }
                             },
 
                             child: Padding(

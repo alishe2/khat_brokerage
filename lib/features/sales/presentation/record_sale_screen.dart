@@ -185,7 +185,7 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
                               )
                             : ListView.separated(
                                 itemCount: filteredItems.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const Divider(height: 1),
                                 itemBuilder: (context, index) {
                                   final item = filteredItems[index];
