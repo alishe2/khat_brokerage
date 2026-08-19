@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:khat_brokerage/features/farmers/presentation/farmers_screen.dart';
 import 'package:khat_brokerage/features/sales/presentation/record_sale_screen.dart';
+import 'package:khat_brokerage/features/buyers/presentation/buyers_screen.dart';
+import 'package:khat_brokerage/features/sellers/presentation/sellers_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -192,14 +194,24 @@ class AdminDashboard extends StatelessWidget {
                   _ActionCard(
                     title: 'Buyers',
                     icon: Icons.groups_outlined,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const BuyersScreen()),
+                      );
+                    },
                   ),
 
                   _ActionCard(
-                    title: 'Sellers',
-                    icon: Icons.person_outline,
-                    onTap: () {},
-                  ),
+  title: 'Sellers',
+  icon: Icons.person_outline,
+  onTap: () {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SellersScreen(),
+      ),
+    );
+  },
+),
 
                   _ActionCard(
                     title: 'Accountant',
