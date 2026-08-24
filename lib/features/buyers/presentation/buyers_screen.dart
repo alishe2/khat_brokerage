@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'buyer_profile_screen.dart';
 
+
 class BuyersScreen extends StatefulWidget {
   const BuyersScreen({super.key});
 
@@ -293,9 +294,8 @@ class _BuyersScreenState extends State<BuyersScreen> {
                                       ),
                                     );
 
-                                    // Refresh the buyer list when returning.
                                     if (mounted) {
-                                      await _loadBuyers();
+                                      _loadBuyers();
                                     }
                                   },
                                 ),

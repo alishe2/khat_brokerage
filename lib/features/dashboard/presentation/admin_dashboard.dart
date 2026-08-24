@@ -5,6 +5,7 @@ import 'package:khat_brokerage/features/buyers/presentation/buyers_screen.dart';
 import 'package:khat_brokerage/features/sellers/presentation/sellers_screen.dart';
 import 'package:khat_brokerage/features/accountant/presentation/accountant_screen.dart';
 import 'package:khat_brokerage/features/transactions/presentation/transactions_screen.dart';
+import 'package:khat_brokerage/features/reports/presentation/reports_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -228,21 +229,27 @@ class AdminDashboard extends StatelessWidget {
                   ),
 
                   _ActionCard(
-  title: 'Transactions',
-  icon: Icons.receipt_long_outlined,
-  onTap: () {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const TransactionsScreen(),
-      ),
-    );
-  },
-),
+                    title: 'Transactions',
+                    icon: Icons.receipt_long_outlined,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TransactionsScreen(),
+                        ),
+                      );
+                    },
+                  ),
 
                   _ActionCard(
                     title: 'Reports',
                     icon: Icons.bar_chart_outlined,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ReportsScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
