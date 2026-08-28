@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:khat_brokerage/features/farmers/presentation/withdraw_farmer_screen.dart';
+import 'package:khat_brokerage/features/farmers/presentation/adjust_farmer_balance_screen.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
   final Map<String, dynamic> farmer;
@@ -198,6 +200,28 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     }
   }
 
+  Future<void> _withdraw() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => WithdrawFarmerScreen(farmer: _farmer)),
+    );
+
+    if (result == true && mounted) {
+      await _reloadFarmer();
+    }
+  }
+
+  Future<void> _adjustBalance() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdjustFarmerBalanceScreen(farmer: _farmer),
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _reloadFarmer();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -285,6 +309,34 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                     subtitle: Text(_farmer['phone'] ?? 'No phone number'),
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: _withdraw,
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text(
+                  'Withdraw',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: _adjustBalance,
+                icon: const Icon(Icons.edit_note_outlined),
+                label: const Text(
+                  'Adjust Balance',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
