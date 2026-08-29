@@ -17,6 +17,7 @@ class AdjustFarmerBalanceScreen extends StatefulWidget {
 class _AdjustFarmerBalanceScreenState
     extends State<AdjustFarmerBalanceScreen> {
   final _supabase = Supabase.instance.client;
+
   final _amountController = TextEditingController();
   final _reasonController = TextEditingController();
 
@@ -36,7 +37,7 @@ class _AdjustFarmerBalanceScreenState
     if (amount == null || amount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Enter a valid amount'),
+          content: Text('Enter a valid non-zero amount'),
         ),
       );
       return;
@@ -58,23 +59,34 @@ class _AdjustFarmerBalanceScreenState
     });
 
     try {
-      await _supabase.rpc(
+      final result = await _supabase.rpc(
         'adjust_farmer_balance',
         params: {
           'p_farmer_id': widget.farmer['id'],
           'p_amount': amount,
+          'p_reason': reason,
         },
       );
 
       if (!mounted) return;
 
+      final data = Map<String, dynamic>.from(result);
+
+      final newBalance =
+          double.tryParse(data['new_balance'].toString()) ?? 0;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Balance adjusted successfully'),
+          content: Text(
+            'Farmer balance adjusted successfully',
+          ),
         ),
       );
 
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop({
+        'success': true,
+        'new_balance': newBalance,
+      });
     } catch (e) {
       if (!mounted) return;
 
@@ -95,13 +107,17 @@ class _AdjustFarmerBalanceScreenState
   @override
   Widget build(BuildContext context) {
     final name = widget.farmer['full_name'] ?? 'Farmer';
-    final balance = widget.farmer['current_balance'] ?? 0;
+
+    final balance =
+        double.tryParse(
+              widget.farmer['current_balance'].toString(),
+            ) ??
+            0;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adjust Balance'),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -118,7 +134,8 @@ class _AdjustFarmerBalanceScreenState
             const SizedBox(height: 6),
 
             Text(
-              'Current balance: $balance Birr',
+              'Current balance: '
+              '${balance.toStringAsFixed(2)} Birr',
               style: TextStyle(
                 color: Colors.grey.shade700,
               ),
@@ -126,12 +143,36 @@ class _AdjustFarmerBalanceScreenState
 
             const SizedBox(height: 28),
 
-            const Text(
-              'Positive amount adds money.\n'
-              'Negative amount removes money.',
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Adjustment',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      'Positive amount adds money to the farmer '
+                      'balance.\nNegative amount removes money.',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             TextField(
               controller: _amountController,
@@ -158,7 +199,8 @@ class _AdjustFarmerBalanceScreenState
               maxLines: 3,
               decoration: const InputDecoration(
                 labelText: 'Reason',
-                hintText: 'Why is the balance being adjusted?',
+                hintText:
+                    'Why is the balance being adjusted?',
                 prefixIcon: Icon(
                   Icons.description_outlined,
                 ),
