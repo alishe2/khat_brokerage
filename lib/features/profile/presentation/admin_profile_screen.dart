@@ -15,7 +15,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool _isUpdatingProfile = false;
   bool _isChangingPassword = false;
 
-  User? get _user => _supabase.auth.currentUser;
 
   String _fullName = 'Administrator';
   String _phone = 'Not available';
@@ -51,9 +50,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Could not load profile: $e'),
         ),
@@ -529,8 +526,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _user;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -640,22 +635,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   ),
                   subtitle: Text(
                     _phone,
-                  ),
-                ),
-
-                const Divider(
-                  height: 1,
-                ),
-
-                ListTile(
-                  leading: const Icon(
-                    Icons.email_outlined,
-                  ),
-                  title: const Text(
-                    'Authentication Email',
-                  ),
-                  subtitle: Text(
-                    user?.email ?? 'Not available',
                   ),
                 ),
 

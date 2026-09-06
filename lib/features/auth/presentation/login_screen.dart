@@ -25,97 +25,78 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-Future<void> _login() async {
-  if (!_formKey.currentState!.validate()) {
-    return;
-  }
 
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    final phone = _phoneController.text.trim();
-    final password = _passwordController.text;
-
-    // Find the internal authentication email using the phone number.
-    final authEmail = await Supabase.instance.client.rpc(
-      'get_auth_email_by_phone',
-      params: {
-        'p_phone': phone,
-      },
-    );
-
-    if (authEmail == null || authEmail.toString().isEmpty) {
-      throw const AuthException(
-        'Invalid phone number or password.',
-      );
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
     }
 
-    // Sign in using the internal email and password.
-    await Supabase.instance.client.auth.signInWithPassword(
-      email: authEmail.toString(),
-      password: password,
-    );
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (!mounted) return;
+    try {
+      final phone = _phoneController.text.trim();
+      final password = _passwordController.text;
 
-    // Get the authenticated user's role.
-    final role = await Supabase.instance.client.rpc(
-      'get_my_role',
-    );
-
-    if (!mounted) return;
-
-    if (role == null || role.toString().isEmpty) {
-      throw const AuthException(
-        'User profile not found.',
+      // Find the internal authentication email using the phone number.
+      final authEmail = await Supabase.instance.client.rpc(
+        'get_auth_email_by_phone',
+        params: {'p_phone': phone},
       );
-    }
 
-    if (role.toString() == 'admin') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const AdminDashboard(),
-        ),
-      );
-    } else if (role.toString() == 'accountant') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const AccountantDashboard(),
-        ),
-      );
-    } else {
-      throw const AuthException(
-        'Invalid user role.',
-      );
-    }
-  } on AuthException catch (e) {
-    if (!mounted) return;
+      if (authEmail == null || authEmail.toString().isEmpty) {
+        throw const AuthException('Invalid phone number or password.');
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(e.message),
-      ),
-    );
-  } catch (e) {
-    if (!mounted) return;
+      // Sign in using the internal email and password.
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: authEmail.toString(),
+        password: password,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Something went wrong: $e',
-        ),
-      ),
-    );
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (!mounted) return;
+
+      // Get the authenticated user's role.
+      final role = await Supabase.instance.client.rpc('get_my_role');
+
+      if (!mounted) return;
+
+      if (role == null || role.toString().isEmpty) {
+        throw const AuthException('User profile not found.');
+      }
+
+      if (role.toString() == 'admin') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else if (role.toString() == 'accountant') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AccountantDashboard()),
+        );
+      } else {
+        throw const AuthException('Invalid user role.');
+      }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Something went wrong: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {

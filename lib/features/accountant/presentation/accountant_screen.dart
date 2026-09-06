@@ -14,7 +14,15 @@ class _AccountantScreenState extends State<AccountantScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
+  // ================================================================
+  // GENERAL ACCOUNTANT ACCESS
+  // ================================================================
+
   bool _accountantEnabled = true;
+
+  // ================================================================
+  // INDIVIDUAL PERMISSIONS
+  // ================================================================
 
   bool _canManageFarmers = false;
   bool _canManageBuyers = false;
@@ -50,27 +58,42 @@ class _AccountantScreenState extends State<AccountantScreen> {
 
       if (data != null) {
         setState(() {
-          _canManageFarmers = data['can_manage_farmers'] == true;
+          // GENERAL ACCESS
+          _accountantEnabled =
+              data['accountant_enabled'] == true;
 
-          _canManageBuyers = data['can_manage_buyers'] == true;
+          // INDIVIDUAL PERMISSIONS
+          _canManageFarmers =
+              data['can_manage_farmers'] == true;
 
-          _canRecordSales = data['can_record_sales'] == true;
+          _canManageBuyers =
+              data['can_manage_buyers'] == true;
+
+          _canRecordSales =
+              data['can_record_sales'] == true;
 
           _canRecordFarmerWithdrawals =
               data['can_record_farmer_withdrawals'] == true;
 
-          _canRecordBuyerPayments = data['can_record_buyer_payments'] == true;
+          _canRecordBuyerPayments =
+              data['can_record_buyer_payments'] == true;
 
-          _canManageSellers = data['can_manage_sellers'] == true;
+          _canManageSellers =
+              data['can_manage_sellers'] == true;
 
-          _canViewReports = data['can_view_reports'] == true;
+          _canViewReports =
+              data['can_view_reports'] == true;
         });
       }
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not load accountant permissions: $e')),
+        SnackBar(
+          content: Text(
+            'Could not load accountant permissions: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -104,6 +127,10 @@ class _AccountantScreenState extends State<AccountantScreen> {
     });
 
     try {
+      // ------------------------------------------------------------
+      // FIND THE ACCOUNTANT PERMISSION RECORD
+      // ------------------------------------------------------------
+
       final permissionRow = await _supabase
           .from('accountant_permissions')
           .select('id')
@@ -111,21 +138,35 @@ class _AccountantScreenState extends State<AccountantScreen> {
           .maybeSingle();
 
       if (permissionRow == null) {
-        throw Exception('Accountant permission record was not found.');
+        throw Exception(
+          'Accountant permission record was not found.',
+        );
       }
 
       final permissionId = permissionRow['id'];
 
+      // ------------------------------------------------------------
+      // SAVE EVERYTHING
+      // ------------------------------------------------------------
+
       await _supabase
           .from('accountant_permissions')
           .update({
+            // GENERAL ACCESS
+            'accountant_enabled': _accountantEnabled,
+
+            // INDIVIDUAL PERMISSIONS
             'can_manage_farmers': _canManageFarmers,
             'can_manage_buyers': _canManageBuyers,
             'can_record_sales': _canRecordSales,
-            'can_record_farmer_withdrawals': _canRecordFarmerWithdrawals,
-            'can_record_buyer_payments': _canRecordBuyerPayments,
+            'can_record_farmer_withdrawals':
+                _canRecordFarmerWithdrawals,
+            'can_record_buyer_payments':
+                _canRecordBuyerPayments,
             'can_manage_sellers': _canManageSellers,
             'can_view_reports': _canViewReports,
+
+            // AUDIT INFORMATION
             'updated_by': currentUser.id,
             'updated_at': DateTime.now().toIso8601String(),
           })
@@ -135,15 +176,29 @@ class _AccountantScreenState extends State<AccountantScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Accountant permissions saved successfully.'),
+          content: Text(
+            'Accountant permissions saved successfully.',
+          ),
         ),
       );
+
+      // ------------------------------------------------------------
+      // RELOAD FROM DATABASE
+      //
+      // This confirms that the values really persisted.
+      // ------------------------------------------------------------
+
+      await _loadPermissions();
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save permissions: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not save permissions: $e',
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -160,10 +215,14 @@ class _AccountantScreenState extends State<AccountantScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Accountant')),
+      appBar: AppBar(
+        title: const Text('Accountant'),
+      ),
 
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
           : RefreshIndicator(
               onRefresh: _loadPermissions,
 
@@ -174,6 +233,7 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   // ==================================================
                   // ACCOUNTANT PROFILE
                   // ==================================================
+
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
@@ -182,15 +242,18 @@ class _AccountantScreenState extends State<AccountantScreen> {
                         children: [
                           const CircleAvatar(
                             radius: 32,
-
-                            child: Icon(Icons.calculate_outlined, size: 32),
+                            child: Icon(
+                              Icons.calculate_outlined,
+                              size: 32,
+                            ),
                           ),
 
                           const SizedBox(width: 16),
 
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
 
                               children: [
                                 const Text(
@@ -207,7 +270,10 @@ class _AccountantScreenState extends State<AccountantScreen> {
                                   _accountantEnabled
                                       ? 'Accountant access enabled'
                                       : 'Accountant access restricted',
-                                  style: TextStyle(color: Colors.grey.shade600),
+
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                  ),
                                 ),
                               ],
                             ),
@@ -220,11 +286,15 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   const SizedBox(height: 20),
 
                   // ==================================================
-                  // ACCOUNTANT ACCESS
+                  // GENERAL ACCOUNTANT ACCESS
                   // ==================================================
+
                   const Text(
                     'Accountant Access',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
                   const SizedBox(height: 10),
@@ -241,7 +311,9 @@ class _AccountantScreenState extends State<AccountantScreen> {
 
                       title: const Text(
                         'Accountant access',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
 
                       subtitle: Text(
@@ -261,11 +333,15 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   const SizedBox(height: 24),
 
                   // ==================================================
-                  // PERMISSIONS
+                  // INDIVIDUAL PERMISSIONS
                   // ==================================================
+
                   const Text(
                     'Permissions',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
                   const SizedBox(height: 10),
@@ -273,7 +349,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.agriculture_outlined,
                     title: 'Farmers',
-                    subtitle: 'Register and manage farmer information',
+                    subtitle:
+                        'Register and manage farmer information',
                     value: _canManageFarmers,
                     onChanged: (value) {
                       setState(() {
@@ -285,7 +362,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.groups_outlined,
                     title: 'Buyers',
-                    subtitle: 'Register and manage buyer information',
+                    subtitle:
+                        'Register and manage buyer information',
                     value: _canManageBuyers,
                     onChanged: (value) {
                       setState(() {
@@ -297,7 +375,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.person_outline,
                     title: 'Sellers',
-                    subtitle: 'Register and manage sellers',
+                    subtitle:
+                        'Register and manage sellers',
                     value: _canManageSellers,
                     onChanged: (value) {
                       setState(() {
@@ -309,7 +388,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.point_of_sale_outlined,
                     title: 'Record Sales',
-                    subtitle: 'Record and finalize sales transactions',
+                    subtitle:
+                        'Record and finalize sales transactions',
                     value: _canRecordSales,
                     onChanged: (value) {
                       setState(() {
@@ -319,9 +399,11 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   ),
 
                   _PermissionTile(
-                    icon: Icons.account_balance_wallet_outlined,
+                    icon:
+                        Icons.account_balance_wallet_outlined,
                     title: 'Farmer Withdrawals',
-                    subtitle: 'Record farmer withdrawals',
+                    subtitle:
+                        'Record farmer withdrawals',
                     value: _canRecordFarmerWithdrawals,
                     onChanged: (value) {
                       setState(() {
@@ -333,7 +415,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.payments_outlined,
                     title: 'Buyer Payments',
-                    subtitle: 'Record payments made by buyers',
+                    subtitle:
+                        'Record payments made by buyers',
                     value: _canRecordBuyerPayments,
                     onChanged: (value) {
                       setState(() {
@@ -345,7 +428,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   _PermissionTile(
                     icon: Icons.bar_chart_outlined,
                     title: 'Reports',
-                    subtitle: 'View business reports',
+                    subtitle:
+                        'View business reports',
                     value: _canViewReports,
                     onChanged: (value) {
                       setState(() {
@@ -359,22 +443,31 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   // ==================================================
                   // SAVE BUTTON
                   // ==================================================
+
                   SizedBox(
                     height: 52,
 
                     child: FilledButton.icon(
-                      onPressed: _isSaving ? null : _savePermissions,
+                      onPressed:
+                          _isSaving ? null : _savePermissions,
 
                       icon: _isSaving
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
                             )
-                          : const Icon(Icons.save_outlined),
+                          : const Icon(
+                              Icons.save_outlined,
+                            ),
 
                       label: Text(
-                        _isSaving ? 'Saving...' : 'Save Permissions',
+                        _isSaving
+                            ? 'Saving...'
+                            : 'Save Permissions',
 
                         style: const TextStyle(
                           fontSize: 16,
@@ -389,18 +482,24 @@ class _AccountantScreenState extends State<AccountantScreen> {
                   // ==================================================
                   // INFORMATION
                   // ==================================================
+
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.info_outline),
+                      leading: const Icon(
+                        Icons.info_outline,
+                      ),
 
                       title: const Text(
                         'How this works',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
 
                       subtitle: const Text(
-                        'These permissions control what the accountant '
-                        'will be allowed to access after logging in.',
+                        'The main Accountant Access switch '
+                        'controls overall access. The individual '
+                        'permissions control specific features.',
                       ),
                     ),
                   ),
@@ -440,9 +539,16 @@ class _PermissionTile extends StatelessWidget {
 
         onChanged: onChanged,
 
-        secondary: CircleAvatar(child: Icon(icon)),
+        secondary: CircleAvatar(
+          child: Icon(icon),
+        ),
 
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
 
         subtitle: Text(subtitle),
       ),

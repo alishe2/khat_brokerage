@@ -86,172 +86,20 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
     required String codeKey,
     bool showMagala = false,
   }) async {
-    final searchController = TextEditingController();
-
-    List<Map<String, dynamic>> filteredItems = List.from(items);
-
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            void performSearch(String query) {
-              final search = query.trim().toLowerCase();
-
-              setSheetState(() {
-                filteredItems = items.where((item) {
-                  final name = (item[nameKey] ?? '').toString().toLowerCase();
-
-                  final code = (item[codeKey] ?? '').toString().toLowerCase();
-
-                  final phone = (item['phone'] ?? '').toString().toLowerCase();
-
-                  final isMagala = showMagala && item['is_magala'] == true;
-
-                  if (search.isEmpty) {
-                    return true;
-                  }
-
-                  return name.contains(search) ||
-                      code.contains(search) ||
-                      phone.contains(search) ||
-                      (isMagala && 'magala'.contains(search));
-                }).toList();
-              });
-            }
-
-            return SafeArea(
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.80,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Select $title',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: searchController,
-                        autofocus: true,
-                        onChanged: performSearch,
-                        decoration: InputDecoration(
-                          labelText: 'Search $title',
-                          hintText: 'Name, code, or phone',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: searchController.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () {
-                                    searchController.clear();
-                                    performSearch('');
-                                  },
-                                  icon: const Icon(Icons.clear),
-                                ),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Expanded(
-                        child: filteredItems.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.search_off,
-                                      size: 48,
-                                      color: Colors.grey.shade500,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'No $title found',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : ListView.separated(
-                                itemCount: filteredItems.length,
-                                separatorBuilder: (_, _) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  final item = filteredItems[index];
-
-                                  final name =
-                                      item[nameKey]?.toString() ?? 'Unknown';
-
-                                  final code = item[codeKey]?.toString() ?? '';
-
-                                  final phone = item['phone']?.toString() ?? '';
-
-                                  final isMagala =
-                                      showMagala && item['is_magala'] == true;
-
-                                  return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 4,
-                                    ),
-
-                                    leading: CircleAvatar(
-                                      child: Icon(
-                                        isMagala
-                                            ? Icons.storefront_outlined
-                                            : Icons.person_outline,
-                                      ),
-                                    ),
-
-                                    title: Text(
-                                      isMagala ? '$name (Magala)' : name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (code.isNotEmpty) Text(code),
-                                        if (phone.isNotEmpty) Text(phone),
-                                      ],
-                                    ),
-
-                                    onTap: () {
-                                      Navigator.of(
-                                        sheetContext,
-                                      ).pop(item['id'].toString());
-                                    },
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+        return _SearchSelectorSheet(
+          title: title,
+          items: items,
+          nameKey: nameKey,
+          codeKey: codeKey,
+          showMagala: showMagala,
         );
       },
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      searchController.dispose();
-    });
 
     return result;
   }
@@ -495,29 +343,46 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       }
     }
 
+    // ================================================================
+    // PREPARE BUYER DATA
+    // ================================================================
+
+    final buyersJson = _saleBuyers.map((buyer) {
+      return {
+        'buyer_id': buyer['buyer_id'],
+        'paid_amount': double.tryParse(buyer['paid_amount'].text.trim()) ?? 0,
+        'lines': buyer['lines'].map((line) {
+          return {
+            'bundle_count': int.parse(line['bundle_count'].text.trim()),
+            'price_per_bundle': double.parse(
+              line['price_per_bundle'].text.trim(),
+            ),
+          };
+        }).toList(),
+      };
+    }).toList();
+
+    // ================================================================
+    // CONFIRM BEFORE SAVING
+    // ================================================================
+
+    final confirmed = await _showSaleConfirmation(
+      enteredBundles: enteredBundles,
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    // ================================================================
+    // NOW SAVE TO DATABASE
+    // ================================================================
+
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final buyersJson = _saleBuyers.map((buyer) {
-        return {
-          'buyer_id': buyer['buyer_id'],
-
-          'paid_amount': double.tryParse(buyer['paid_amount'].text.trim()) ?? 0,
-
-          'lines': buyer['lines'].map((line) {
-            return {
-              'bundle_count': int.parse(line['bundle_count'].text.trim()),
-
-              'price_per_bundle': double.parse(
-                line['price_per_bundle'].text.trim(),
-              ),
-            };
-          }).toList(),
-        };
-      }).toList();
-
       final result = await _supabase.rpc(
         'record_sale',
         params: {
@@ -553,6 +418,163 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
   // SUCCESS DIALOG
   // ------------------------------------------------------------
 
+  Future<bool> _showSaleConfirmation({required int enteredBundles}) async {
+    final farmerName = _farmerDisplayName();
+    final sellerName = _sellerDisplayName();
+
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Text('Confirm Sale'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Are you sure you want to save this sale?',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Text('Farmer: $farmerName'),
+
+                    const SizedBox(height: 6),
+
+                    Text('Seller: $sellerName'),
+
+                    const SizedBox(height: 6),
+
+                    Text('Total Kilo: $enteredBundles'),
+
+                    const Divider(height: 24),
+
+                    Text(
+                      'Total Sales: '
+                      '${_totalSales.toStringAsFixed(2)} Birr',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Commission (10%): '
+                      '${_commission.toStringAsFixed(2)} Birr',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Farmer Amount (90%): '
+                      '${(_totalSales * 0.90).toStringAsFixed(2)} Birr',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Advance Loan: '
+                      '${_advanceLoan.toStringAsFixed(2)} Birr',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Final Farmer Amount: '
+                      '${_farmerAmount.toStringAsFixed(2)} Birr',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+
+                    const Divider(height: 24),
+
+                    const Text(
+                      'Buyer Information',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    ...List.generate(_saleBuyers.length, (index) {
+                      final buyer = _saleBuyers[index];
+
+                      final buyerTotal = _buyerTotal(buyer);
+
+                      final paid =
+                          double.tryParse(buyer['paid_amount'].text.trim()) ??
+                          0;
+
+                      final unpaid = buyerTotal - paid;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _buyerDisplayName(buyer['buyer_id']),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            const SizedBox(height: 3),
+
+                            Text('Kilo: ${_buyerBundles(buyer)}'),
+
+                            Text(
+                              'Total: '
+                              '${buyerTotal.toStringAsFixed(2)} Birr',
+                            ),
+
+                            Text(
+                              'Paid: '
+                              '${paid.toStringAsFixed(2)} Birr',
+                            ),
+
+                            Text(
+                              'Unpaid: '
+                              '${unpaid.toStringAsFixed(2)} Birr',
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      'Please review all information before saving.',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  child: const Text('Confirm & Save'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
   Future<void> _showSaleSuccess(dynamic result) async {
     final data = Map<String, dynamic>.from(result);
 
@@ -581,6 +603,11 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
               Text(
                 'Commission: '
                 '${data['commission']} Birr',
+              ),
+
+              Text(
+                'Advance Loan: '
+                '${data['advance_loan']} Birr',
               ),
 
               Text(
@@ -1132,6 +1159,199 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
             style: TextStyle(fontWeight: bold ? FontWeight.bold : null),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SearchSelectorSheet extends StatefulWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+  final String nameKey;
+  final String codeKey;
+  final bool showMagala;
+
+  const _SearchSelectorSheet({
+    required this.title,
+    required this.items,
+    required this.nameKey,
+    required this.codeKey,
+    required this.showMagala,
+  });
+
+  @override
+  State<_SearchSelectorSheet> createState() => _SearchSelectorSheetState();
+}
+
+class _SearchSelectorSheetState extends State<_SearchSelectorSheet> {
+  late final TextEditingController _searchController;
+
+  late List<Map<String, dynamic>> _filteredItems;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _searchController = TextEditingController();
+
+    _filteredItems = List.from(widget.items);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+
+    super.dispose();
+  }
+
+  void _performSearch(String query) {
+    final search = query.trim().toLowerCase();
+
+    setState(() {
+      _filteredItems = widget.items.where((item) {
+        final name = (item[widget.nameKey] ?? '').toString().toLowerCase();
+
+        final code = (item[widget.codeKey] ?? '').toString().toLowerCase();
+
+        final phone = (item['phone'] ?? '').toString().toLowerCase();
+
+        final isMagala = widget.showMagala && item['is_magala'] == true;
+
+        if (search.isEmpty) {
+          return true;
+        }
+
+        return name.contains(search) ||
+            code.contains(search) ||
+            phone.contains(search) ||
+            (isMagala && 'magala'.contains(search));
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.80,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            children: [
+              Text(
+                'Select ${widget.title}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: _performSearch,
+                decoration: InputDecoration(
+                  labelText: 'Search ${widget.title}',
+                  hintText: 'Name, code, or phone',
+                  prefixIcon: const Icon(Icons.search),
+
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            _performSearch('');
+                          },
+                          icon: const Icon(Icons.clear),
+                        ),
+
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: _filteredItems.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: Colors.grey.shade500,
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            Text(
+                              'No ${widget.title} found',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _filteredItems.length,
+
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+
+                        itemBuilder: (context, index) {
+                          final item = _filteredItems[index];
+
+                          final name =
+                              item[widget.nameKey]?.toString() ?? 'Unknown';
+
+                          final code = item[widget.codeKey]?.toString() ?? '';
+
+                          final phone = item['phone']?.toString() ?? '';
+
+                          final isMagala =
+                              widget.showMagala && item['is_magala'] == true;
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+
+                            leading: CircleAvatar(
+                              child: Icon(
+                                isMagala
+                                    ? Icons.storefront_outlined
+                                    : Icons.person_outline,
+                              ),
+                            ),
+
+                            title: Text(
+                              isMagala ? '$name (Magala)' : name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (code.isNotEmpty) Text(code),
+
+                                if (phone.isNotEmpty) Text(phone),
+                              ],
+                            ),
+
+                            onTap: () {
+                              Navigator.of(context).pop(item['id'].toString());
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

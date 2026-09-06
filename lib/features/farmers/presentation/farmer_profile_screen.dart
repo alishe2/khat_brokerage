@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:khat_brokerage/features/farmers/presentation/withdraw_farmer_screen.dart';
 import 'package:khat_brokerage/features/farmers/presentation/adjust_farmer_balance_screen.dart';
+import 'package:khat_brokerage/features/farmers/presentation/farmer_transaction_history.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
   final Map<String, dynamic> farmer;
@@ -17,22 +19,34 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 
   late Map<String, dynamic> _farmer;
 
+  int _historyRefreshTrigger = 0;
+
   @override
   void initState() {
     super.initState();
+
     _farmer = Map<String, dynamic>.from(widget.farmer);
   }
 
+  // ================================================================
+  // CURRENT BALANCE
+  // ================================================================
+
   double get _balance {
-    return double.tryParse(_farmer['current_balance'].toString()) ?? 0;
+    return double.tryParse(_farmer['current_balance']?.toString() ?? '0') ?? 0;
   }
+
+  // ================================================================
+  // RELOAD FARMER
+  // ================================================================
 
   Future<void> _reloadFarmer() async {
     try {
       final data = await _supabase
           .from('farmers')
           .select(
-            'id, farmer_code, full_name, phone, current_balance, is_active',
+            'id, farmer_code, full_name, phone, '
+            'current_balance, is_active',
           )
           .eq('id', _farmer['id'])
           .single();
@@ -45,126 +59,87 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not reload farmer: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Could not reload farmer: $e'),
+        ),
+      );
     }
   }
 
+  // ================================================================
+  // REFRESH
+  // ================================================================
+
+  Future<void> _refreshAll() async {
+    await _reloadFarmer();
+
+    if (!mounted) return;
+
+    setState(() {
+      _historyRefreshTrigger++;
+    });
+  }
+
+  // ================================================================
+  // EDIT FARMER
+  // ================================================================
+
   Future<void> _editFarmer() async {
-    final nameController = TextEditingController(
-      text: _farmer['full_name'] ?? '',
-    );
-
-    final phoneController = TextEditingController(text: _farmer['phone'] ?? '');
-
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Edit Farmer'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone number',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('Cancel'),
-            ),
-
-            FilledButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final phone = phoneController.text.trim();
-
-                if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Enter the farmer name')),
-                  );
-                  return;
-                }
-
-                try {
-                  await _supabase
-                      .from('farmers')
-                      .update({
-                        'full_name': name,
-                        'phone': phone.isEmpty ? null : phone,
-                        'updated_at': DateTime.now().toIso8601String(),
-                      })
-                      .eq('id', _farmer['id']);
-
-                  if (!dialogContext.mounted) return;
-
-                  Navigator.of(dialogContext).pop(true);
-                } catch (e) {
-                  if (!dialogContext.mounted) return;
-
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(content: Text('Could not update farmer: $e')),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
+        return _EditFarmerDialog(
+          farmer: _farmer,
+          supabase: _supabase,
         );
       },
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      nameController.dispose();
-      phoneController.dispose();
-    });
+    if (saved == true && mounted) {
+      // Show success message immediately after the Supabase update
+      // succeeds and the dialog closes.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green.shade700,
+          content: const Text(
+            'Farmer profile updated successfully',
+          ),
+        ),
+      );
 
-    if (saved == true) {
+      // Reload the farmer so the edited information appears
+      // immediately on the profile screen.
       await _reloadFarmer();
     }
   }
 
+  // ================================================================
+  // DELETE FARMER
+  // ================================================================
+
   Future<void> _deleteFarmer() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
           title: const Text('Delete Farmer'),
           content: const Text(
-            'This farmer will be removed from the active farmer list. '
-            'Existing sales and withdrawal history will remain.',
+            'This farmer will be removed from the '
+            'active farmer list. Existing sales and '
+            'withdrawal history will remain.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(false);
+                Navigator.of(context).pop(false);
               },
               child: const Text('Cancel'),
             ),
-
             FilledButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(true);
+                Navigator.of(context).pop(true);
               },
               child: const Text('Delete'),
             ),
@@ -187,28 +162,44 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farmer deleted successfully')),
+        SnackBar(
+          backgroundColor: Colors.green.shade700,
+          content: const Text('Farmer deleted successfully'),
+        ),
       );
 
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not delete farmer: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Could not delete farmer: $e'),
+        ),
+      );
     }
   }
+
+  // ================================================================
+  // WITHDRAW
+  // ================================================================
 
   Future<void> _withdraw() async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => WithdrawFarmerScreen(farmer: _farmer)),
+      MaterialPageRoute(
+        builder: (_) => WithdrawFarmerScreen(farmer: _farmer),
+      ),
     );
 
     if (result == true && mounted) {
-      await _reloadFarmer();
+      await _refreshAll();
     }
   }
+
+  // ================================================================
+  // ADJUST BALANCE
+  // ================================================================
 
   Future<void> _adjustBalance() async {
     final result = await Navigator.of(context).push(
@@ -218,12 +209,18 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     );
 
     if (result == true && mounted) {
-      await _reloadFarmer();
+      await _refreshAll();
     }
   }
 
+  // ================================================================
+  // BUILD
+  // ================================================================
+
   @override
   Widget build(BuildContext context) {
+    final farmerId = _farmer['id'];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Farmer Profile'),
@@ -233,7 +230,6 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
             tooltip: 'Edit Farmer',
             icon: const Icon(Icons.edit_outlined),
           ),
-
           IconButton(
             onPressed: _deleteFarmer,
             tooltip: 'Delete Farmer',
@@ -241,15 +237,23 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
           ),
         ],
       ),
-
       body: RefreshIndicator(
-        onRefresh: _reloadFarmer,
+        onRefresh: _refreshAll,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const CircleAvatar(
+            // ======================================================
+            // AVATAR
+            // ======================================================
+
+            CircleAvatar(
               radius: 45,
-              child: Icon(Icons.agriculture_outlined, size: 45),
+              backgroundColor: Colors.green.shade100,
+              child: Icon(
+                Icons.agriculture_outlined,
+                size: 45,
+                color: Colors.green.shade700,
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -257,19 +261,41 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
             Text(
               _farmer['full_name'] ?? 'Unknown',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             const SizedBox(height: 24),
 
+            // ======================================================
+            // BALANCE
+            // ======================================================
+
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
+              elevation: 3,
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.green.shade600,
+                      Colors.teal.shade600,
+                    ],
+                  ),
+                ),
                 child: Column(
                   children: [
                     const Text(
                       'Current Balance',
-                      style: TextStyle(fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
 
                     const SizedBox(height: 8),
@@ -277,6 +303,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                     Text(
                       '${_balance.toStringAsFixed(2)} Birr',
                       style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
                       ),
@@ -288,25 +315,54 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 
             const SizedBox(height: 16),
 
+            // ======================================================
+            // FARMER INFORMATION
+            // ======================================================
+
             Card(
+              elevation: 2,
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.badge_outlined),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blue.shade100,
+                      child: Icon(
+                        Icons.badge_outlined,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
                     title: const Text('Farmer ID'),
-                    subtitle: Text(_farmer['farmer_code'] ?? 'No ID'),
+                    subtitle: Text(
+                      _farmer['farmer_code'] ?? 'No ID',
+                    ),
                   ),
 
                   ListTile(
-                    leading: const Icon(Icons.person_outline),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.purple.shade100,
+                      child: Icon(
+                        Icons.person_outline,
+                        color: Colors.purple.shade700,
+                      ),
+                    ),
                     title: const Text('Full Name'),
-                    subtitle: Text(_farmer['full_name'] ?? 'Unknown'),
+                    subtitle: Text(
+                      _farmer['full_name'] ?? 'Unknown',
+                    ),
                   ),
 
                   ListTile(
-                    leading: const Icon(Icons.phone_outlined),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.orange.shade100,
+                      child: Icon(
+                        Icons.phone_outlined,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
                     title: const Text('Phone'),
-                    subtitle: Text(_farmer['phone'] ?? 'No phone number'),
+                    subtitle: Text(
+                      _farmer['phone'] ?? 'No phone number',
+                    ),
                   ),
                 ],
               ),
@@ -314,34 +370,221 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 
             const SizedBox(height: 20),
 
+            // ======================================================
+            // WITHDRAW
+            // ======================================================
+
             SizedBox(
               height: 52,
               child: FilledButton.icon(
                 onPressed: _withdraw,
-                icon: const Icon(Icons.account_balance_wallet_outlined),
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                ),
                 label: const Text(
                   'Withdraw',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
 
             const SizedBox(height: 12),
 
+            // ======================================================
+            // ADJUST
+            // ======================================================
+
             SizedBox(
               height: 52,
               child: OutlinedButton.icon(
                 onPressed: _adjustBalance,
-                icon: const Icon(Icons.edit_note_outlined),
+                icon: const Icon(
+                  Icons.edit_note_outlined,
+                ),
                 label: const Text(
                   'Adjust Balance',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
+
+            const SizedBox(height: 28),
+
+            // ======================================================
+            // TRANSACTION HISTORY
+            // ======================================================
+
+            FarmerTransactionHistory(
+              key: ValueKey(
+                '${farmerId}_$_historyRefreshTrigger',
+              ),
+              farmerId: farmerId,
+              refreshTrigger: _historyRefreshTrigger,
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ====================================================================
+// EDIT FARMER DIALOG
+// ====================================================================
+
+class _EditFarmerDialog extends StatefulWidget {
+  final Map<String, dynamic> farmer;
+  final SupabaseClient supabase;
+
+  const _EditFarmerDialog({
+    required this.farmer,
+    required this.supabase,
+  });
+
+  @override
+  State<_EditFarmerDialog> createState() => _EditFarmerDialogState();
+}
+
+class _EditFarmerDialogState extends State<_EditFarmerDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _nameController = TextEditingController(
+      text: widget.farmer['full_name'] ?? '',
+    );
+
+    _phoneController = TextEditingController(
+      text: widget.farmer['phone'] ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text('Enter the farmer name'),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+    });
+
+    try {
+      await widget.supabase
+          .from('farmers')
+          .update({
+            'full_name': name,
+            'phone': phone.isEmpty ? null : phone,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', widget.farmer['id']);
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Could not update farmer: $e'),
+        ),
+      );
+
+      setState(() {
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Farmer'),
+
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Full name',
+              prefixIcon: Icon(
+                Icons.person_outline,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Phone number',
+              prefixIcon: Icon(
+                Icons.phone_outlined,
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: _saving
+              ? null
+              : () {
+                  Navigator.of(context).pop(false);
+                },
+          child: const Text('Cancel'),
+        ),
+
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }
