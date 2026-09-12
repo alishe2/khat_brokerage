@@ -4,8 +4,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:khat_brokerage/features/farmers/presentation/farmers_screen.dart';
 import 'package:khat_brokerage/features/sales/presentation/record_sale_screen.dart';
 import 'package:khat_brokerage/features/buyers/presentation/buyers_screen.dart';
+import 'package:khat_brokerage/features/sellers/presentation/sellers_screen.dart';
 import 'package:khat_brokerage/features/transactions/presentation/transactions_screen.dart';
+import 'package:khat_brokerage/features/reports/presentation/reports_screen.dart';
+import 'package:khat_brokerage/features/expenses/presentation/other_expenses_screen.dart';
 import 'package:khat_brokerage/features/profile/presentation/accountant_profile_screen.dart';
+
+// Same shared radius used on the Admin dashboard, so both screens
+// read as one visual family instead of two different apps.
+const double _kCardRadius = 16;
 
 class AccountantDashboard extends StatefulWidget {
   const AccountantDashboard({super.key});
@@ -20,24 +27,35 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
   bool _isLoading = true;
   bool _isLoadingPermissions = true;
 
-  int _kiloSoldToday = 0;
-
-  double _buyerPaidToday = 0;
-  double _buyerUnpaidToday = 0;
+  String _accountantName = 'Accountant';
 
   // ============================================================
-  // ACCOUNTANT PERMISSIONS
+  // DASHBOARD DATA — all seven figures, matching Admin's set
+  // ============================================================
+
+  int _kiloSoldToday = 0;
+
+  double _commissionToday = 0;
+  double _buyerPaidToday = 0;
+  double _buyerUnpaidToday = 0;
+  double _paidFromOldDebtToday = 0;
+  double _totalPaidToday = 0;
+  double _farmerWithdrawalsToday = 0;
+
+  // ============================================================
+  // ACCOUNTANT ACCESS
   // ============================================================
 
   bool _accountantEnabled = true;
 
-  bool _canManageFarmers = false;
-  bool _canManageBuyers = false;
-  bool _canRecordSales = false;
-  bool _canRecordFarmerWithdrawals = false;
-  bool _canRecordBuyerPayments = false;
-  bool _canManageSellers = false;
-  bool _canViewReports = false;
+  bool _showDashboard = true;
+  bool _showRecordSale = true;
+  bool _showFarmers = true;
+  bool _showBuyers = true;
+  bool _showSellers = true;
+  bool _showTransactions = true;
+  bool _showReports = true;
+  bool _showExpenses = true;
 
   @override
   void initState() {
@@ -61,18 +79,17 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
     try {
       final data = await _supabase
           .from('accountant_permissions')
-          .select(
-            '''
+          .select('''
             accountant_enabled,
-            can_manage_farmers,
-            can_manage_buyers,
-            can_record_sales,
-            can_record_farmer_withdrawals,
-            can_record_buyer_payments,
-            can_manage_sellers,
-            can_view_reports
-            ''',
-          )
+            show_dashboard_to_accountant,
+            show_record_sale_to_accountant,
+            show_farmers_to_accountant,
+            show_buyers_to_accountant,
+            show_sellers_to_accountant,
+            show_transactions_to_accountant,
+            show_reports_to_accountant,
+            show_expenses_to_accountant
+            ''')
           .limit(1)
           .maybeSingle();
 
@@ -80,28 +97,33 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
 
       if (data != null) {
         setState(() {
-          _accountantEnabled = data['accountant_enabled'] == true;
+          _accountantEnabled = data['accountant_enabled'] as bool? ?? true;
 
-          _canManageFarmers = data['can_manage_farmers'] == true;
-          _canManageBuyers = data['can_manage_buyers'] == true;
-          _canRecordSales = data['can_record_sales'] == true;
-          _canRecordFarmerWithdrawals =
-              data['can_record_farmer_withdrawals'] == true;
-          _canRecordBuyerPayments =
-              data['can_record_buyer_payments'] == true;
-          _canManageSellers = data['can_manage_sellers'] == true;
-          _canViewReports = data['can_view_reports'] == true;
+          _showDashboard =
+              data['show_dashboard_to_accountant'] as bool? ?? true;
+
+          _showRecordSale =
+              data['show_record_sale_to_accountant'] as bool? ?? true;
+
+          _showFarmers = data['show_farmers_to_accountant'] as bool? ?? true;
+
+          _showBuyers = data['show_buyers_to_accountant'] as bool? ?? true;
+
+          _showSellers = data['show_sellers_to_accountant'] as bool? ?? true;
+
+          _showTransactions =
+              data['show_transactions_to_accountant'] as bool? ?? true;
+
+          _showReports = data['show_reports_to_accountant'] as bool? ?? true;
+
+          _showExpenses = data['show_expenses_to_accountant'] as bool? ?? true;
         });
       }
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not load accountant permissions: $e',
-          ),
-        ),
+        SnackBar(content: Text('Could not load accountant permissions: $e')),
       );
     } finally {
       if (mounted) {
@@ -117,7 +139,6 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
   // ============================================================
 
   bool _isAllowed(bool individualPermission) {
-    // Master switch has highest priority.
     if (!_accountantEnabled) {
       return false;
     }
@@ -144,50 +165,96 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
           '${today.month.toString().padLeft(2, '0')}-'
           '${today.day.toString().padLeft(2, '0')}';
 
-      // ==========================================================
-      // TODAY'S SALES
-      // ==========================================================
+      final userId = _supabase.auth.currentUser?.id;
 
-      final salesData = await _supabase
-          .from('sales')
-          .select('total_bundles')
-          .eq('sale_date', todayString);
+      final results = await Future.wait<dynamic>([
+        userId != null
+            ? _supabase
+                  .from('users')
+                  .select('full_name')
+                  .eq('id', userId)
+                  .maybeSingle()
+            : Future.value(null),
 
-      int kiloSold = 0;
+        _supabase
+            .from('sales')
+            .select('total_bundles, commission_amount')
+            .eq('sale_date', todayString),
 
-      for (final sale in salesData) {
-        kiloSold +=
-            (sale['total_bundles'] as num?)?.toInt() ?? 0;
+        _supabase
+            .from('sale_buyers')
+            .select('paid_amount, unpaid_amount, sales!inner(sale_date)')
+            .eq('sales.sale_date', todayString),
+
+        _supabase
+            .from('buyer_debt_payments')
+            .select('amount')
+            .eq('payment_date', todayString),
+
+        _supabase
+            .from('farmer_withdrawals')
+            .select('amount')
+            .eq('withdrawal_date', todayString),
+      ]);
+
+      final userData = results[0] as Map<String, dynamic>?;
+      final salesData = results[1] as List;
+      final saleBuyerData = results[2] as List;
+      final oldDebtPaymentsData = results[3] as List;
+      final withdrawalsData = results[4] as List;
+
+      String accountantName = 'Accountant';
+
+      if (userId != null) {
+        accountantName = userData?['full_name']?.toString().trim() ?? '';
+
+        if (accountantName.isEmpty) {
+          accountantName = 'Accountant';
+        }
       }
 
-      // ==========================================================
-      // TODAY'S BUYER PAYMENTS
-      // ==========================================================
+      int kiloSold = 0;
+      double commission = 0;
 
-      final saleBuyerData = await _supabase
-          .from('sale_buyers')
-          .select(
-            'paid_amount, unpaid_amount, sales!inner(sale_date)',
-          )
-          .eq('sales.sale_date', todayString);
+      for (final sale in salesData) {
+        kiloSold += (sale['total_bundles'] as num?)?.toInt() ?? 0;
+        commission += (sale['commission_amount'] as num?)?.toDouble() ?? 0;
+      }
 
       double buyerPaid = 0;
       double buyerUnpaid = 0;
 
       for (final buyer in saleBuyerData) {
-        buyerPaid +=
-            (buyer['paid_amount'] as num?)?.toDouble() ?? 0;
+        buyerPaid += (buyer['paid_amount'] as num?)?.toDouble() ?? 0;
+        buyerUnpaid += (buyer['unpaid_amount'] as num?)?.toDouble() ?? 0;
+      }
 
-        buyerUnpaid +=
-            (buyer['unpaid_amount'] as num?)?.toDouble() ?? 0;
+      double paidFromOldDebt = 0;
+
+      for (final payment in oldDebtPaymentsData) {
+        paidFromOldDebt += (payment['amount'] as num?)?.toDouble() ?? 0;
+      }
+
+      final totalPaid = buyerPaid + paidFromOldDebt;
+
+      double farmerWithdrawals = 0;
+
+      for (final withdrawal in withdrawalsData) {
+        farmerWithdrawals += (withdrawal['amount'] as num?)?.toDouble() ?? 0;
       }
 
       if (!mounted) return;
 
       setState(() {
+        _accountantName = accountantName;
+
         _kiloSoldToday = kiloSold;
+        _commissionToday = commission;
         _buyerPaidToday = buyerPaid;
         _buyerUnpaidToday = buyerUnpaid;
+        _paidFromOldDebtToday = paidFromOldDebt;
+        _totalPaidToday = totalPaid;
+        _farmerWithdrawalsToday = farmerWithdrawals;
         _isLoading = false;
       });
     } catch (e) {
@@ -197,65 +264,129 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not load dashboard: $e',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not load dashboard: $e')));
     }
   }
 
-  // ============================================================
-  // REFRESH EVERYTHING
-  // ============================================================
-
   Future<void> _refreshDashboard() async {
-    await Future.wait([
-      _loadPermissions(),
-      _loadDashboard(),
-    ]);
+    await Future.wait([_loadPermissions(), _loadDashboard()]);
   }
-
-  // ============================================================
-  // MONEY FORMAT
-  // ============================================================
 
   String _money(double amount) {
     return '${amount.toStringAsFixed(2)} Birr';
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+  Future<void> _openRecordSale() async {
+    if (!_isAllowed(_showRecordSale)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RecordSaleScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openFarmers() async {
+    if (!_isAllowed(_showFarmers)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FarmersScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openBuyers() async {
+    if (!_isAllowed(_showBuyers)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const BuyersScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openSellers() async {
+    if (!_isAllowed(_showSellers)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SellersScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openTransactions() async {
+    if (!_isAllowed(_showTransactions)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TransactionsScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openReports() async {
+    if (!_isAllowed(_showReports)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
+
+  Future<void> _openExpenses() async {
+    if (!_isAllowed(_showExpenses)) return;
+
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const OtherExpensesScreen()));
+
+    if (mounted) {
+      await _refreshDashboard();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final dashboardAllowed = _isAllowed(_showDashboard);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accountant Dashboard'),
-
         actions: [
           IconButton(
             onPressed: () {
               Navigator.of(context)
                   .push(
                     MaterialPageRoute(
-                      builder: (_) =>
-                          const AccountantProfileScreen(),
+                      builder: (_) => const AccountantProfileScreen(),
                     ),
                   )
                   .then((_) {
-                if (mounted) {
-                  _refreshDashboard();
-                }
-              });
+                    if (mounted) {
+                      _refreshDashboard();
+                    }
+                  });
             },
             tooltip: 'Account',
-            icon: const Icon(
-              Icons.account_circle_outlined,
-            ),
+            icon: const Icon(Icons.account_circle_outlined),
           ),
         ],
       ),
@@ -273,12 +404,11 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
 
             children: [
               // ==================================================
-              // HEADER
+              // HEADER — same style/weight as Admin's
               // ==================================================
-
-              const Text(
-                'Good morning, Accountant',
-                style: TextStyle(
+              Text(
+                'Good morning, $_accountantName',
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -287,39 +417,38 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
               const SizedBox(height: 4),
 
               Text(
-                _accountantEnabled
-                    ? 'Today\'s business activities'
-                    : 'Your account access is currently restricted',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                ),
+                !_accountantEnabled
+                    ? 'Your account access is currently restricted'
+                    : !dashboardAllowed
+                    ? 'Dashboard access is restricted'
+                    : 'Today\'s business activities',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
               ),
 
               const SizedBox(height: 24),
 
               // ==================================================
-              // ACCESS RESTRICTED MESSAGE
+              // ACCOUNT ACCESS RESTRICTED
               // ==================================================
-
-              if (!_isLoadingPermissions &&
-                  !_accountantEnabled) ...[
+              if (!_isLoadingPermissions && !_accountantEnabled) ...[
                 Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_kCardRadius),
+                    side: BorderSide(color: colorScheme.outlineVariant),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
 
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.lock_outline,
-                          size: 30,
-                        ),
+                        const Icon(Icons.lock_outline, size: 30),
 
                         const SizedBox(width: 12),
 
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
 
                             children: [
                               const Text(
@@ -336,7 +465,7 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
                                 'The administrator has temporarily '
                                 'restricted your access to the system.',
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -351,67 +480,177 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
               ],
 
               // ==================================================
-              // TODAY
+              // TODAY — same LayoutBuilder + Wrap grid as Admin,
+              // with Commission featured full-width, instead of
+              // the old fixed Row/Expanded pairs.
               // ==================================================
-
-              const Text(
-                'Today',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              if (!_isLoadingPermissions && dashboardAllowed) ...[
+                const Text(
+                  'Today',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-              ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Kilo Sold',
-                      value: _isLoading
-                          ? '...'
-                          : '$_kiloSoldToday',
-                      icon: Icons.inventory_2_outlined,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = (constraints.maxWidth - 12) / 2;
+
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Kilo Sold',
+                            value: _isLoading ? '...' : '$_kiloSoldToday',
+                            icon: Icons.inventory_2_outlined,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Buyer Paid',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_buyerPaidToday),
+                            icon: Icons.payments_outlined,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Buyer Unpaid',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_buyerUnpaidToday),
+                            icon: Icons.money_off_outlined,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Paid From Old Debt',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_paidFromOldDebtToday),
+                            icon: Icons.history_outlined,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Total Paid',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_totalPaidToday),
+                            icon: Icons.payments_outlined,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardCard(
+                            title: 'Farmer Withdrawal',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_farmerWithdrawalsToday),
+                            icon: Icons.arrow_downward,
+                          ),
+                        ),
+
+                        SizedBox(
+                          width: constraints.maxWidth,
+                          child: _FeaturedDashboardCard(
+                            title: 'Commission',
+                            value: _isLoading
+                                ? '...'
+                                : _money(_commissionToday),
+                            icon: Icons.account_balance_wallet_outlined,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+              ],
+
+              // ==================================================
+              // DASHBOARD RESTRICTED
+              // ==================================================
+              if (!_isLoadingPermissions &&
+                  _accountantEnabled &&
+                  !dashboardAllowed) ...[
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_kCardRadius),
+                    side: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.dashboard_outlined,
+                            color: Colors.orange,
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Dashboard restricted',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The administrator has disabled '
+                                'your dashboard access.',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
 
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: _DashboardCard(
-                      title: 'Buyer Paid',
-                      value: _isLoading
-                          ? '...'
-                          : _money(_buyerPaidToday),
-                      icon: Icons.payments_outlined,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              _DashboardCard(
-                title: 'Buyer Unpaid',
-                value: _isLoading
-                    ? '...'
-                    : _money(_buyerUnpaidToday),
-                icon: Icons.money_off_outlined,
-              ),
-
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
+              ],
 
               // ==================================================
               // WORK AREA
               // ==================================================
-
               const Text(
                 'Work Area',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 12),
@@ -429,8 +668,7 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
 
                   shrinkWrap: true,
 
-                  physics:
-                      const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
 
                   crossAxisSpacing: 12,
 
@@ -439,106 +677,53 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
                   childAspectRatio: 1.5,
 
                   children: [
-                    // ==========================================
-                    // RECORD SALE
-                    // ==========================================
-
                     _ActionCard(
                       title: 'Record Sale',
-                      icon:
-                          Icons.point_of_sale_outlined,
-                      enabled:
-                          _isAllowed(_canRecordSales),
-
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const RecordSaleScreen(),
-                          ),
-                        );
-
-                        if (mounted) {
-                          await _loadDashboard();
-                        }
-                      },
+                      icon: Icons.point_of_sale_outlined,
+                      enabled: _isAllowed(_showRecordSale),
+                      onTap: _openRecordSale,
                     ),
-
-                    // ==========================================
-                    // FARMERS
-                    // ==========================================
 
                     _ActionCard(
                       title: 'Farmers',
-                      icon:
-                          Icons.agriculture_outlined,
-                      enabled:
-                          _isAllowed(_canManageFarmers),
-
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const FarmersScreen(),
-                          ),
-                        );
-
-                        if (mounted) {
-                          await _loadDashboard();
-                        }
-                      },
+                      icon: Icons.agriculture_outlined,
+                      enabled: _isAllowed(_showFarmers),
+                      onTap: _openFarmers,
                     ),
-
-                    // ==========================================
-                    // BUYERS
-                    // ==========================================
 
                     _ActionCard(
                       title: 'Buyers',
-                      icon:
-                          Icons.groups_outlined,
-                      enabled:
-                          _isAllowed(_canManageBuyers),
-
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const BuyersScreen(),
-                          ),
-                        );
-
-                        if (mounted) {
-                          await _loadDashboard();
-                        }
-                      },
+                      icon: Icons.groups_outlined,
+                      enabled: _isAllowed(_showBuyers),
+                      onTap: _openBuyers,
                     ),
 
-                    // ==========================================
-                    // TRANSACTIONS
-                    // ==========================================
+                    _ActionCard(
+                      title: 'Sellers',
+                      icon: Icons.person_outline,
+                      enabled: _isAllowed(_showSellers),
+                      onTap: _openSellers,
+                    ),
 
                     _ActionCard(
                       title: 'Transactions',
-                      icon:
-                          Icons.receipt_long_outlined,
+                      icon: Icons.receipt_long_outlined,
+                      enabled: _isAllowed(_showTransactions),
+                      onTap: _openTransactions,
+                    ),
 
-                      // Transactions currently has no
-                      // accountant permission field.
-                      enabled: true,
+                    _ActionCard(
+                      title: 'Reports',
+                      icon: Icons.bar_chart_outlined,
+                      enabled: _isAllowed(_showReports),
+                      onTap: _openReports,
+                    ),
 
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const TransactionsScreen(),
-                          ),
-                        );
-
-                        if (mounted) {
-                          await _loadDashboard();
-                        }
-                      },
+                    _ActionCard(
+                      title: 'Expenses',
+                      icon: Icons.account_balance_wallet_outlined,
+                      enabled: _isAllowed(_showExpenses),
+                      onTap: _openExpenses,
                     ),
                   ],
                 ),
@@ -552,9 +737,9 @@ class _AccountantDashboardState extends State<AccountantDashboard> {
   }
 }
 
-// ==================================================================
-// DASHBOARD CARD
-// ==================================================================
+// ======================================================================
+// DASHBOARD CARD — identical structure/styling to Admin's version
+// ======================================================================
 
 class _DashboardCard extends StatelessWidget {
   final String title;
@@ -569,36 +754,126 @@ class _DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_kCardRadius),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 28,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 23, color: colorScheme.primary),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             Text(
               title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
 
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ======================================================================
+// FEATURED COMMISSION CARD — identical to Admin's version
+// ======================================================================
+
+class _FeaturedDashboardCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const _FeaturedDashboardCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_kCardRadius),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kCardRadius),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.10)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, size: 28, color: colorScheme.primary),
+            ),
+
+            const SizedBox(width: 16),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -608,9 +883,10 @@ class _DashboardCard extends StatelessWidget {
   }
 }
 
-// ==================================================================
-// QUICK ACTION CARD
-// ==================================================================
+// ======================================================================
+// QUICK ACTION CARD — same border/radius as Admin's, plus the
+// enabled/disabled + "Restricted" treatment unique to this screen.
+// ======================================================================
 
 class _ActionCard extends StatelessWidget {
   final String title;
@@ -628,45 +904,33 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_kCardRadius),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
       child: InkWell(
         onTap: enabled ? onTap : null,
 
-        borderRadius:
-            BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_kCardRadius),
 
         child: Opacity(
           opacity: enabled ? 1.0 : 0.45,
 
           child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
 
             children: [
-              Icon(
-                enabled
-                    ? icon
-                    : Icons.lock_outline,
-                size: 32,
-              ),
+              Icon(enabled ? icon : Icons.lock_outline, size: 32),
 
               const SizedBox(height: 8),
 
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
 
               if (!enabled) ...[
                 const SizedBox(height: 4),
 
-                const Text(
-                  'Restricted',
-                  style: TextStyle(
-                    fontSize: 11,
-                  ),
-                ),
+                const Text('Restricted', style: TextStyle(fontSize: 11)),
               ],
             ],
           ),

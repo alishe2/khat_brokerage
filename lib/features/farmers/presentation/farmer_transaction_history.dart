@@ -26,6 +26,11 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   List<Map<String, dynamic>> _adjustments = [];
 
   // ================================================================
+  // SALES SETTLEMENT FILTER ('All', 'Unsettled', 'Settled')
+  // ================================================================
+  String _settlementFilter = 'All';
+
+  // ================================================================
   // DATE SEARCH
   // ================================================================
 
@@ -70,7 +75,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       final farmerId = widget.farmerId;
 
       // ============================================================
-      // SALES
+      // SALES (including is_settled)
       // ============================================================
 
       final salesData = await _supabase
@@ -84,6 +89,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
             commission_amount,
             advance_loan,
             farmer_amount,
+            is_settled,
             seller_id,
             sellers(full_name)
           ''')
@@ -142,10 +148,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
           final priceLines = List<Map<String, dynamic>>.from(priceLinesData);
 
-          // ==========================================================
-          // CONNECT PRICE LINES → SALE
-          // ==========================================================
-
+          // Connect price lines -> sale
           for (final buyer in saleBuyers) {
             final saleId = buyer['sale_id']?.toString();
             final saleBuyerId = buyer['id']?.toString();
@@ -173,13 +176,9 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
         }
       }
 
-      // ============================================================
-      // ATTACH PRICE LINES TO SALES
-      // ============================================================
-
+      // Attach price lines to sales
       for (final sale in sales) {
         final saleId = sale['id']?.toString();
-
         sale['price_lines'] = priceLinesBySale[saleId] ?? [];
       }
 
@@ -243,6 +242,61 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   }
 
   // ================================================================
+  // TOGGLE SALE SETTLEMENT
+  // ================================================================
+
+  // ================================================================
+  // TOGGLE SALE SETTLEMENT
+  // ================================================================
+
+  Future<void> _toggleSaleSettlement(Map<String, dynamic> sale) async {
+    final currentStatus = sale['is_settled'] == true;
+    final newStatus = !currentStatus;
+    final saleId = sale['id'];
+
+    // Optimistic local state update for instantaneous feedback
+    setState(() {
+      sale['is_settled'] = newStatus;
+    });
+
+    try {
+      await _supabase.rpc(
+        'toggle_sale_settlement',
+        params: {'p_sale_id': saleId, 'p_settled': newStatus},
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 2),
+          backgroundColor: newStatus ? Colors.green.shade700 : Colors.blueGrey,
+          content: Text(
+            newStatus
+                ? 'Sale ${sale['transaction_code']} marked as settled'
+                : 'Sale ${sale['transaction_code']} marked as pending',
+          ),
+        ),
+      );
+    } catch (e) {
+      // Revert if network update failed
+      if (mounted) {
+        setState(() {
+          sale['is_settled'] = currentStatus;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: Text('Could not update settlement: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  // ================================================================
   // DATE SEARCH HELPERS
   // ================================================================
 
@@ -264,28 +318,34 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
         ? dateValue.substring(0, 10)
         : dateValue;
 
-    // Full date: 2026-08-30
     if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(search)) {
       return date == search;
     }
 
-    // Month: 2026-08
     if (RegExp(r'^\d{4}-\d{2}$').hasMatch(search)) {
       return date.startsWith(search);
     }
 
-    // Year: 2026
     if (RegExp(r'^\d{4}$').hasMatch(search)) {
       return date.startsWith(search);
     }
 
-    // Also allow partial searching if the user types something else.
     return date.contains(search);
   }
 
   List<Map<String, dynamic>> get _filteredSales {
     return _sales.where((sale) {
-      return _matchesDateSearch(sale['sale_date']?.toString());
+      final matchesDate = _matchesDateSearch(sale['sale_date']?.toString());
+      if (!matchesDate) return false;
+
+      final isSettled = sale['is_settled'] == true;
+      if (_settlementFilter == 'Settled') {
+        return isSettled;
+      } else if (_settlementFilter == 'Unsettled') {
+        return !isSettled;
+      }
+
+      return true;
     }).toList();
   }
 
@@ -307,9 +367,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-
     DateTime initialDate = now;
-
     final currentSearch = _normalizeDate(_dateSearch);
 
     if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(currentSearch)) {
@@ -382,9 +440,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-
         const SizedBox(height: 7),
-
         Text(
           'Examples: 2026 • 2026-08 • 2026-08-30',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -399,9 +455,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
   Widget _buildPriceLine(Map<String, dynamic> line) {
     final kilo = (line['bundle_count'] as num?)?.toInt() ?? 0;
-
     final price = (line['price_per_bundle'] as num?)?.toDouble() ?? 0;
-
     final lineTotal = (line['line_total'] as num?)?.toDouble() ?? 0;
 
     return Container(
@@ -429,9 +483,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               color: Colors.blue.shade700,
             ),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Text(
               '$kilo × ${price.toStringAsFixed(2)} = '
@@ -449,7 +501,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   }
 
   // ================================================================
-  // INFO ROW
+  // INFO & MONEY ROWS
   // ================================================================
 
   Widget _infoRow(String label, String value, IconData icon) {
@@ -459,9 +511,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,9 +520,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
                   label,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
-
                 const SizedBox(height: 2),
-
                 Text(
                   value,
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -484,10 +532,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       ),
     );
   }
-
-  // ================================================================
-  // MONEY ROW
-  // ================================================================
 
   Widget _moneyRow(
     String label,
@@ -507,7 +551,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               ),
             ),
           ),
-
           Text(
             '${amount.toStringAsFixed(2)} Birr',
             style: TextStyle(
@@ -521,10 +564,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
     );
   }
 
-  // ================================================================
-  // EMPTY STATE
-  // ================================================================
-
   Widget _emptyHistory() {
     return Card(
       child: Padding(
@@ -536,9 +575,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               size: 52,
               color: Colors.grey.shade400,
             ),
-
             const SizedBox(height: 12),
-
             Text(
               'No transaction history',
               style: TextStyle(
@@ -547,12 +584,9 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
                 color: Colors.grey.shade700,
               ),
             ),
-
             const SizedBox(height: 5),
-
             Text(
-              'Sales, withdrawals and balance '
-              'adjustments will appear here.',
+              'Sales, withdrawals and balance adjustments will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
@@ -561,10 +595,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       ),
     );
   }
-
-  // ================================================================
-  // NO SEARCH RESULTS
-  // ================================================================
 
   Widget _noSearchResults(String type) {
     return Card(
@@ -578,9 +608,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               size: 46,
               color: Colors.grey.shade400,
             ),
-
             const SizedBox(height: 10),
-
             Text(
               'No $type found',
               style: TextStyle(
@@ -589,11 +617,9 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
                 color: Colors.grey.shade700,
               ),
             ),
-
             const SizedBox(height: 5),
-
             Text(
-              'No transaction matches "$_dateSearch".',
+              'No records match your search or filter.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
@@ -604,32 +630,26 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   }
 
   // ================================================================
-  // SALE CARD
+  // SALE CARD (WITH CHECKABLE SETTLEMENT)
   // ================================================================
 
   Widget _saleCard(Map<String, dynamic> sale) {
-    final sellerData = sale['sellers'];
+    final isSettled = sale['is_settled'] == true;
 
+    final sellerData = sale['sellers'];
     final sellerName = sellerData is Map
         ? sellerData['full_name']?.toString() ?? 'Unknown seller'
         : 'Unknown seller';
 
     final date = sale['sale_date']?.toString() ?? 'Unknown date';
-
     final code = sale['transaction_code']?.toString() ?? 'No code';
-
     final kilo = (sale['total_bundles'] as num?)?.toInt() ?? 0;
-
     final totalSales = (sale['total_sales'] as num?)?.toDouble() ?? 0;
-
     final commission = (sale['commission_amount'] as num?)?.toDouble() ?? 0;
-
     final advance = (sale['advance_loan'] as num?)?.toDouble() ?? 0;
-
     final farmerAmount = (sale['farmer_amount'] as num?)?.toDouble() ?? 0;
 
     final rawPriceLines = sale['price_lines'];
-
     final List<Map<String, dynamic>> priceLines = [];
 
     if (rawPriceLines is List) {
@@ -642,37 +662,113 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: isSettled ? 1 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: isSettled ? Colors.green.shade200 : Colors.grey.shade200,
+          width: isSettled ? 1.5 : 1,
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-
-        leading: CircleAvatar(
-          backgroundColor: Colors.green.shade100,
-          child: Icon(
-            Icons.point_of_sale_outlined,
-            color: Colors.green.shade700,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _toggleSaleSettlement(sale),
+          child: Tooltip(
+            message: isSettled
+                ? 'Settled (Tap to mark pending)'
+                : 'Pending (Tap to mark settled)',
+            child: CircleAvatar(
+              backgroundColor: isSettled
+                  ? Colors.green.shade100
+                  : Colors.grey.shade100,
+              child: Icon(
+                isSettled
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked,
+                color: isSettled ? Colors.green.shade700 : Colors.grey.shade500,
+                size: 24,
+              ),
+            ),
           ),
         ),
-
-        title: const Text(
-          'Sale',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Sale $code',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  decoration: isSettled ? TextDecoration.lineThrough : null,
+                  color: isSettled ? Colors.grey.shade700 : null,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isSettled
+                    ? Colors.green.withValues(alpha: 0.12)
+                    : Colors.amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                isSettled ? 'Settled' : 'Pending',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSettled
+                      ? Colors.green.shade800
+                      : Colors.amber.shade900,
+                ),
+              ),
+            ),
+          ],
         ),
-
-        subtitle: Text('$date • $code'),
-
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            '$date • $kilo Kilo • ${farmerAmount.toStringAsFixed(2)} Birr',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+          ),
+        ),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-
         children: [
           const Divider(),
 
+          // Settlement Action Button inside expanded details
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: OutlinedButton.icon(
+              onPressed: () => _toggleSaleSettlement(sale),
+              icon: Icon(
+                isSettled ? Icons.replay : Icons.check_circle_outline,
+                size: 18,
+              ),
+              label: Text(
+                isSettled
+                    ? 'Mark as Pending (Unsettled)'
+                    : 'Mark as Settled / Paid Out',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isSettled
+                    ? Colors.orange.shade800
+                    : Colors.green.shade700,
+                side: BorderSide(
+                  color: isSettled
+                      ? Colors.orange.shade300
+                      : Colors.green.shade300,
+                ),
+              ),
+            ),
+          ),
+
           _infoRow('Date', date, Icons.calendar_today_outlined),
-
           _infoRow('Transaction Code', code, Icons.tag_outlined),
-
           _infoRow('Seller', sellerName, Icons.person_outline),
-
           _infoRow('Total Kilo', '$kilo', Icons.inventory_2_outlined),
 
           const SizedBox(height: 12),
@@ -684,9 +780,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
                 size: 20,
                 color: Colors.blue.shade700,
               ),
-
               const SizedBox(width: 8),
-
               Text(
                 'Kilo & Price',
                 style: TextStyle(
@@ -716,9 +810,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
                     size: 19,
                     color: Colors.orange.shade700,
                   ),
-
                   const SizedBox(width: 8),
-
                   Expanded(
                     child: Text(
                       'No price line information',
@@ -737,15 +829,17 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
           const SizedBox(height: 10),
 
           _moneyRow('Total Sales', totalSales),
-
-          _moneyRow('Commission', commission, color: Colors.blue.shade700),
-
-          _moneyRow('Advance', advance, color: Colors.orange.shade700),
+          _moneyRow(
+            'Commission (10%)',
+            commission,
+            color: Colors.blue.shade700,
+          ),
+          _moneyRow('Advance Loan', advance, color: Colors.orange.shade700),
 
           const Divider(height: 22),
 
           _moneyRow(
-            'Amount Added to Farmer Balance',
+            'Farmer Amount Added to Balance',
             farmerAmount,
             emphasized: true,
             color: Colors.green.shade700,
@@ -761,18 +855,16 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
   Widget _withdrawalCard(Map<String, dynamic> withdrawal) {
     final date = withdrawal['withdrawal_date']?.toString() ?? 'Unknown date';
-
     final amount = (withdrawal['amount'] as num?)?.toDouble() ?? 0;
-
     final remaining =
         (withdrawal['remaining_balance'] as num?)?.toDouble() ?? 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-
         leading: CircleAvatar(
           backgroundColor: Colors.orange.shade100,
           child: Icon(
@@ -780,23 +872,16 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
             color: Colors.orange.shade700,
           ),
         ),
-
         title: const Text(
           'Withdrawal',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-
-        subtitle: Text(date),
-
+        subtitle: Text('$date • ${amount.toStringAsFixed(2)} Birr'),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-
         children: [
           const Divider(),
-
           _infoRow('Date', date, Icons.calendar_today_outlined),
-
           _moneyRow('Amount Withdrawn', amount, color: Colors.orange.shade700),
-
           _moneyRow(
             'Remaining Balance',
             remaining,
@@ -814,59 +899,44 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
 
   Widget _adjustmentCard(Map<String, dynamic> adjustment) {
     final date = adjustment['created_at']?.toString() ?? 'Unknown date';
-
     final oldBalance = (adjustment['old_balance'] as num?)?.toDouble() ?? 0;
-
     final newBalance = (adjustment['new_balance'] as num?)?.toDouble() ?? 0;
-
     final changed = newBalance - oldBalance;
-
     final reason = adjustment['reason']?.toString() ?? 'No reason provided';
-
     final increase = changed >= 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-
         leading: CircleAvatar(
           backgroundColor: Colors.purple.shade100,
           child: Icon(Icons.edit_note_outlined, color: Colors.purple.shade700),
         ),
-
         title: const Text(
           'Balance Adjustment',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-
         subtitle: Text(date),
-
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-
         children: [
           const Divider(),
-
           _infoRow('Date', date, Icons.calendar_today_outlined),
-
           _moneyRow('Old Balance', oldBalance),
-
           _moneyRow(
             'Amount Changed',
             changed,
             color: increase ? Colors.green.shade700 : Colors.red.shade700,
           ),
-
           _moneyRow(
             'New Balance',
             newBalance,
             emphasized: true,
             color: Colors.purple.shade700,
           ),
-
           const SizedBox(height: 10),
-
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -874,9 +944,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
           ),
-
           const SizedBox(height: 4),
-
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -896,15 +964,45 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   Widget _buildSalesTab() {
     final sales = _filteredSales;
 
-    if (sales.isEmpty) {
-      if (_dateSearch.isNotEmpty) {
-        return _noSearchResults('sales');
-      }
+    return Column(
+      children: [
+        // Settlement Quick Filter Chips
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              _buildSettlementChip('All'),
+              const SizedBox(width: 8),
+              _buildSettlementChip('Unsettled'),
+              const SizedBox(width: 8),
+              _buildSettlementChip('Settled'),
+            ],
+          ),
+        ),
 
-      return _emptyHistory();
-    }
+        if (sales.isEmpty)
+          (_dateSearch.isNotEmpty || _settlementFilter != 'All')
+              ? _noSearchResults('sales')
+              : _emptyHistory()
+        else
+          ...sales.map(_saleCard),
+      ],
+    );
+  }
 
-    return Column(children: [...sales.map(_saleCard)]);
+  Widget _buildSettlementChip(String label) {
+    final selected = _settlementFilter == label;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        if (val) {
+          setState(() {
+            _settlementFilter = label;
+          });
+        }
+      },
+    );
   }
 
   Widget _buildWithdrawalsTab() {
@@ -914,7 +1012,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       if (_dateSearch.isNotEmpty) {
         return _noSearchResults('withdrawals');
       }
-
       return _emptyHistory();
     }
 
@@ -928,7 +1025,6 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       if (_dateSearch.isNotEmpty) {
         return _noSearchResults('balance adjustments');
       }
-
       return _emptyHistory();
     }
 
@@ -971,13 +1067,9 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
             'Transaction History',
             style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 14),
-
           _buildDateSearch(),
-
           const SizedBox(height: 16),
-
           Container(
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
@@ -996,17 +1088,13 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
               ],
             ),
           ),
-
           const SizedBox(height: 14),
-
           SizedBox(
             height: 600,
             child: TabBarView(
               children: [
                 SingleChildScrollView(child: _buildSalesTab()),
-
                 SingleChildScrollView(child: _buildWithdrawalsTab()),
-
                 SingleChildScrollView(child: _buildAdjustmentsTab()),
               ],
             ),
