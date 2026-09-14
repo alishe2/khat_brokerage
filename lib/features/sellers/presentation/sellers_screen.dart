@@ -38,7 +38,7 @@ class _SellersScreenState extends State<SellersScreen> {
     try {
       final data = await _supabase
           .from('sellers')
-          .select('id, seller_code, full_name, phone, is_active')
+          .select('id, seller_code, full_name, phone, current_debt, is_active')
           .eq('is_active', true)
           .order('full_name');
 
@@ -238,6 +238,19 @@ class _SellersScreenState extends State<SellersScreen> {
                                       Text(seller['seller_code'] ?? 'No code'),
                                       Text(
                                         seller['phone'] ?? 'No phone number',
+                                      ),
+                                      Text(
+                                        'Debt: ${((seller['current_debt'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} Birr',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color:
+                                              ((seller['current_debt'] as num?)
+                                                          ?.toDouble() ??
+                                                      0) >
+                                                  0
+                                              ? Colors.red.shade700
+                                              : Colors.green.shade700,
+                                        ),
                                       ),
                                     ],
                                   ),

@@ -189,11 +189,12 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
       final withdrawalsData = await _supabase
           .from('farmer_withdrawals')
           .select('''
-            id,
-            amount,
-            withdrawal_date,
-            remaining_balance
-          ''')
+      id,
+      amount,
+      withdrawal_date,
+      payment_method,
+      remaining_balance
+    ''')
           .eq('farmer_id', farmerId)
           .order('withdrawal_date', ascending: false);
 
@@ -856,6 +857,7 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
   Widget _withdrawalCard(Map<String, dynamic> withdrawal) {
     final date = withdrawal['withdrawal_date']?.toString() ?? 'Unknown date';
     final amount = (withdrawal['amount'] as num?)?.toDouble() ?? 0;
+    final paymentMethod = withdrawal['payment_method']?.toString().trim() ?? '';
     final remaining =
         (withdrawal['remaining_balance'] as num?)?.toDouble() ?? 0;
 
@@ -880,8 +882,17 @@ class _FarmerTransactionHistoryState extends State<FarmerTransactionHistory> {
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
         children: [
           const Divider(),
+
           _infoRow('Date', date, Icons.calendar_today_outlined),
+
           _moneyRow('Amount Withdrawn', amount, color: Colors.orange.shade700),
+
+          // Show payment method for new records.
+          // Older withdrawal records may have no value because
+          // the column did not exist before this feature.
+          if (paymentMethod.isNotEmpty)
+            _infoRow('Payment Method', paymentMethod, Icons.payment_outlined),
+
           _moneyRow(
             'Remaining Balance',
             remaining,

@@ -17,24 +17,47 @@ class WithdrawFarmerScreen extends StatefulWidget {
 class _WithdrawFarmerScreenState
     extends State<WithdrawFarmerScreen> {
   final _supabase = Supabase.instance.client;
+
   final _amountController = TextEditingController();
+  final _paymentMethodController = TextEditingController();
 
   bool _isSaving = false;
 
   @override
   void dispose() {
     _amountController.dispose();
+    _paymentMethodController.dispose();
     super.dispose();
   }
 
   Future<void> _withdraw() async {
     final amountText = _amountController.text.trim();
+    final paymentMethod =
+        _paymentMethodController.text.trim();
+
     final amount = double.tryParse(amountText);
+
+    // ================================================================
+    // VALIDATE AMOUNT
+    // ================================================================
 
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Enter a valid withdrawal amount'),
+        ),
+      );
+      return;
+    }
+
+    // ================================================================
+    // VALIDATE PAYMENT METHOD
+    // ================================================================
+
+    if (paymentMethod.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter the payment method'),
         ),
       );
       return;
@@ -50,6 +73,7 @@ class _WithdrawFarmerScreenState
         params: {
           'p_farmer_id': widget.farmer['id'],
           'p_amount': amount,
+          'p_payment_method': paymentMethod,
         },
       );
 
@@ -110,9 +134,14 @@ class _WithdrawFarmerScreenState
 
             const SizedBox(height: 30),
 
+            // ========================================================
+            // WITHDRAWAL AMOUNT
+            // ========================================================
+
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
+              keyboardType:
+                  const TextInputType.numberWithOptions(
                 decimal: true,
               ),
               decoration: const InputDecoration(
@@ -125,7 +154,31 @@ class _WithdrawFarmerScreenState
               ),
             ),
 
+            const SizedBox(height: 18),
+
+            // ========================================================
+            // PAYMENT METHOD
+            // ========================================================
+
+            TextField(
+              controller: _paymentMethodController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Payment method',
+                hintText:
+                    'e.g. Cash, Telebirr, CBE Birr, Bank transfer',
+                prefixIcon: Icon(
+                  Icons.account_balance_wallet_outlined,
+                ),
+                border: OutlineInputBorder(),
+              ),
+            ),
+
             const SizedBox(height: 24),
+
+            // ========================================================
+            // CONFIRM
+            // ========================================================
 
             SizedBox(
               height: 52,
