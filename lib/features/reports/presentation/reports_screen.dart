@@ -28,6 +28,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // ============================================================
 
   int _kiloSold = 0;
+  double _totalSales = 0;
   double _commission = 0;
   double _buyerPaid = 0;
   double _buyerUnpaid = 0;
@@ -154,7 +155,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       // 2. Buyer payments on sales
       var saleBuyersQuery = _supabase
           .from('sale_buyers')
-          .select('paid_amount, unpaid_amount, sales!inner(sale_date)');
+          .select('total_amount, paid_amount, unpaid_amount, sales!inner(sale_date)');
 
       if (hasDateFilter) {
         if (isSingleDate) {
@@ -280,10 +281,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         commission += (sale['commission_amount'] as num?)?.toDouble() ?? 0;
       }
 
-      // Buyer Paid on Sales & Unpaid
+      // Total Sales (gross) & Buyer Paid on Sales & Unpaid
+      double totalSales = 0;
       double buyerPaid = 0;
       double buyerUnpaid = 0;
       for (final buyer in saleBuyerData) {
+        totalSales += (buyer['total_amount'] as num?)?.toDouble() ?? 0;
         buyerPaid += (buyer['paid_amount'] as num?)?.toDouble() ?? 0;
         buyerUnpaid += (buyer['unpaid_amount'] as num?)?.toDouble() ?? 0;
       }
@@ -337,6 +340,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
       setState(() {
         _kiloSold = kiloSold;
+        _totalSales = totalSales;
         _commission = commission;
         _buyerPaid = buyerPaid;
         _buyerUnpaid = buyerUnpaid;
@@ -516,6 +520,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 spacing: 12,
                                 runSpacing: 12,
                                 children: [
+                                  // Total Sales (Featured Card) — gross
+                                  // figure, no commission/advance deducted.
+                                  SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: _ReportFeaturedCard(
+                                      title: 'Total Sales',
+                                      value: _money(_totalSales),
+                                      icon: Icons.trending_up_rounded,
+                                    ),
+                                  ),
+
                                   SizedBox(
                                     width: cardWidth,
                                     child: _ReportDashboardCard(

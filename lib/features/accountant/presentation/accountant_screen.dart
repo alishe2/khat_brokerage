@@ -29,6 +29,7 @@ class _AccountantScreenState extends State<AccountantScreen> {
   bool _showTransactions = true;
   bool _showReports = true;
   bool _showExpenses = true;
+  bool _allowSaleEdit = false;
 
   @override
   void initState() {
@@ -69,7 +70,8 @@ class _AccountantScreenState extends State<AccountantScreen> {
             show_sellers_to_accountant,
             show_transactions_to_accountant,
             show_reports_to_accountant,
-            show_expenses_to_accountant
+            show_expenses_to_accountant,
+            allow_sale_edit_to_accountant
           ''')
           .limit(1)
           .maybeSingle();
@@ -99,6 +101,9 @@ class _AccountantScreenState extends State<AccountantScreen> {
 
         _showExpenses =
             permissions['show_expenses_to_accountant'] as bool? ?? true;
+
+        _allowSaleEdit =
+            permissions['allow_sale_edit_to_accountant'] as bool? ?? false;
       }
     } catch (e) {
       if (mounted) {
@@ -137,6 +142,7 @@ class _AccountantScreenState extends State<AccountantScreen> {
         'show_transactions_to_accountant': _showTransactions,
         'show_reports_to_accountant': _showReports,
         'show_expenses_to_accountant': _showExpenses,
+        'allow_sale_edit_to_accountant': _allowSaleEdit,
         'updated_by': _supabase.auth.currentUser?.id,
         'updated_at': DateTime.now().toIso8601String(),
       };
@@ -485,6 +491,19 @@ class _AccountantScreenState extends State<AccountantScreen> {
                       onChanged: (value) {
                         setState(() {
                           _showExpenses = value;
+                        });
+                      },
+                    ),
+
+                    _buildPermissionTile(
+                      title: 'Edit Sales',
+                      subtitle:
+                          'Allow accountant to correct saved sale records',
+                      icon: Icons.edit_note_outlined,
+                      value: _allowSaleEdit,
+                      onChanged: (value) {
+                        setState(() {
+                          _allowSaleEdit = value;
                         });
                       },
                     ),

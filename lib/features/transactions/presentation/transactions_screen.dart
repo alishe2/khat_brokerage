@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:khat_brokerage/features/sales/presentation/edit_sale_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -117,39 +118,36 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       // LOAD FARMERS
       // ==========================================================
 
-      final farmers = await _supabase
-          .from('farmers')
-          .select('id, full_name');
+      final farmers = await _supabase.from('farmers').select('id, full_name');
 
       final Map<String, String> farmerNames = {
         for (final farmer in farmers)
-          farmer['id'].toString(): farmer['full_name']?.toString() ?? 'Unknown Farmer',
+          farmer['id'].toString():
+              farmer['full_name']?.toString() ?? 'Unknown Farmer',
       };
 
       // ==========================================================
       // LOAD BUYERS
       // ==========================================================
 
-      final buyers = await _supabase
-          .from('buyers')
-          .select('id, group_name');
+      final buyers = await _supabase.from('buyers').select('id, group_name');
 
       final Map<String, String> buyerNames = {
         for (final buyer in buyers)
-          buyer['id'].toString(): buyer['group_name']?.toString() ?? 'Unknown Buyer',
+          buyer['id'].toString():
+              buyer['group_name']?.toString() ?? 'Unknown Buyer',
       };
 
       // ==========================================================
       // LOAD SELLERS
       // ==========================================================
 
-      final sellers = await _supabase
-          .from('sellers')
-          .select('id, full_name');
+      final sellers = await _supabase.from('sellers').select('id, full_name');
 
       final Map<String, String> sellerNames = {
         for (final seller in sellers)
-          seller['id'].toString(): seller['full_name']?.toString() ?? 'Unknown Seller',
+          seller['id'].toString():
+              seller['full_name']?.toString() ?? 'Unknown Seller',
       };
 
       // ==========================================================
@@ -166,11 +164,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final farmerId = sale['farmer_id']?.toString();
         final sellerId = sale['seller_id']?.toString();
 
-        final farmerName =
-            farmerNames[farmerId] ?? 'Unknown Farmer';
+        final farmerName = farmerNames[farmerId] ?? 'Unknown Farmer';
 
-        final sellerName =
-            sellerNames[sellerId] ?? 'Unknown Seller';
+        final sellerName = sellerNames[sellerId] ?? 'Unknown Seller';
 
         combined.add({
           'id': sale['id'],
@@ -205,8 +201,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       for (final withdrawal in withdrawals) {
         final farmerId = withdrawal['farmer_id']?.toString();
 
-        final farmerName =
-            farmerNames[farmerId] ?? 'Unknown Farmer';
+        final farmerName = farmerNames[farmerId] ?? 'Unknown Farmer';
 
         combined.add({
           'id': withdrawal['id'],
@@ -233,8 +228,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       for (final payment in buyerPayments) {
         final buyerId = payment['buyer_id']?.toString();
 
-        final buyerName =
-            buyerNames[buyerId] ?? 'Unknown Buyer';
+        final buyerName = buyerNames[buyerId] ?? 'Unknown Buyer';
 
         combined.add({
           'id': payment['id'],
@@ -269,8 +263,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
         final buyerId = adjustment['buyer_id']?.toString();
 
-        final buyerName =
-            buyerNames[buyerId] ?? 'Unknown Buyer';
+        final buyerName = buyerNames[buyerId] ?? 'Unknown Buyer';
 
         combined.add({
           'id': adjustment['id'],
@@ -280,8 +273,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           'amount': difference,
 
           // Keep previous information.
-          'details':
-              adjustment['reason'] ?? 'Buyer debt adjustment',
+          'details': adjustment['reason'] ?? 'Buyer debt adjustment',
 
           // Additional information.
           'buyer_name': buyerName,
@@ -310,8 +302,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
         final farmerId = adjustment['farmer_id']?.toString();
 
-        final farmerName =
-            farmerNames[farmerId] ?? 'Unknown Farmer';
+        final farmerName = farmerNames[farmerId] ?? 'Unknown Farmer';
 
         combined.add({
           'id': adjustment['id'],
@@ -321,8 +312,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           'amount': difference,
 
           // Keep previous information.
-          'details':
-              adjustment['reason'] ?? 'Farmer balance adjustment',
+          'details': adjustment['reason'] ?? 'Farmer balance adjustment',
 
           // Additional information.
           'farmer_name': farmerName,
@@ -343,15 +333,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
       combined.sort((a, b) {
         final aDate =
-            DateTime.tryParse(
-              a['created_at']?.toString() ?? '',
-            ) ??
+            DateTime.tryParse(a['created_at']?.toString() ?? '') ??
             DateTime(2000);
 
         final bDate =
-            DateTime.tryParse(
-              b['created_at']?.toString() ?? '',
-            ) ??
+            DateTime.tryParse(b['created_at']?.toString() ?? '') ??
             DateTime(2000);
 
         return bDate.compareTo(aDate);
@@ -371,11 +357,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not load transactions: $e',
-          ),
-        ),
+        SnackBar(content: Text('Could not load transactions: $e')),
       );
     }
   }
@@ -386,33 +368,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   List<Map<String, dynamic>> get _filteredTransactions {
     return _transactions.where((transaction) {
-      final type =
-          transaction['type']?.toString() ?? '';
+      final type = transaction['type']?.toString() ?? '';
 
-      final code =
-          transaction['code']?.toString() ?? '';
+      final code = transaction['code']?.toString() ?? '';
 
-      final details =
-          transaction['details']?.toString() ?? '';
+      final details = transaction['details']?.toString() ?? '';
 
-      final date =
-          transaction['date']?.toString() ?? '';
+      final date = transaction['date']?.toString() ?? '';
 
-      final farmerName =
-          transaction['farmer_name']?.toString() ?? '';
+      final farmerName = transaction['farmer_name']?.toString() ?? '';
 
-      final sellerName =
-          transaction['seller_name']?.toString() ?? '';
+      final sellerName = transaction['seller_name']?.toString() ?? '';
 
-      final buyerName =
-          transaction['buyer_name']?.toString() ?? '';
+      final buyerName = transaction['buyer_name']?.toString() ?? '';
 
-      final query =
-          _searchQuery.trim().toLowerCase();
+      final query = _searchQuery.trim().toLowerCase();
 
-      final matchesFilter =
-          _selectedFilter == 'All' ||
-          type == _selectedFilter;
+      final matchesFilter = _selectedFilter == 'All' || type == _selectedFilter;
 
       if (!matchesFilter) {
         return false;
@@ -463,8 +435,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   // ============================================================
 
   String _formatAmount(dynamic value) {
-    final amount =
-        double.tryParse(value.toString()) ?? 0;
+    final amount = double.tryParse(value.toString()) ?? 0;
 
     return '${amount.toStringAsFixed(2)} Birr';
   }
@@ -473,184 +444,441 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   // SALE DETAILS
   // ============================================================
 
-  Future<void> _showSaleDetails(
-    Map<String, dynamic> transaction,
-  ) async {
-    final totalSales =
-        double.tryParse(
-          transaction['total_sales']?.toString() ?? '0',
-        ) ??
-        0;
+  Future<void> _showSaleDetails(Map<String, dynamic> transaction) async {
+    final saleId = transaction['id']?.toString();
 
-    final commission =
-        double.tryParse(
-          transaction['commission_amount']?.toString() ?? '0',
-        ) ??
-        0;
+    if (saleId == null || saleId.isEmpty) {
+      return;
+    }
 
-    final advanceLoan =
-        double.tryParse(
-          transaction['advance_loan']?.toString() ?? '0',
-        ) ??
-        0;
+    // ============================================================
+    // LOAD THE COMPLETE SALE RECORD
+    // ============================================================
 
-    final farmerAmount =
-        double.tryParse(
-          transaction['farmer_amount']?.toString() ?? '0',
-        ) ??
-        0;
+    try {
+      final saleBuyersData = await _supabase
+          .from('sale_buyers')
+          .select(
+            'id, buyer_id, total_amount, paid_amount, unpaid_amount, created_at',
+          )
+          .eq('sale_id', saleId)
+          .order('created_at');
 
-    final bundles =
-        transaction['total_bundles'] ?? 0;
+      final saleBuyers = List<Map<String, dynamic>>.from(saleBuyersData);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
+      final buyerIds = saleBuyers
+          .map((row) => row['buyer_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      final Map<String, String> buyerNames = {};
+
+      if (buyerIds.isNotEmpty) {
+        final buyersData = await _supabase
+            .from('buyers')
+            .select('id, group_name, is_magala')
+            .inFilter('id', buyerIds);
+
+        for (final buyer in buyersData) {
+          final id = buyer['id']?.toString();
+          if (id == null) continue;
+
+          final isMagala = buyer['is_magala'] == true;
+          buyerNames[id] = isMagala
+              ? 'Magala'
+              : (buyer['group_name']?.toString().trim().isNotEmpty == true
+                    ? buyer['group_name'].toString()
+                    : 'Unknown Buyer');
+        }
+      }
+
+      final saleBuyerIds = saleBuyers
+          .map((row) => row['id'])
+          .where((id) => id != null)
+          .toList();
+
+      final Map<String, List<Map<String, dynamic>>> priceLinesBySaleBuyer = {};
+
+      if (saleBuyerIds.isNotEmpty) {
+        final priceLinesData = await _supabase
+            .from('sale_price_lines')
+            .select(
+              'id, sale_buyer_id, bundle_count, price_per_bundle, line_total',
+            )
+            .inFilter('sale_buyer_id', saleBuyerIds)
+            .order('id');
+
+        for (final line in priceLinesData) {
+          final saleBuyerId = line['sale_buyer_id']?.toString();
+          if (saleBuyerId == null) continue;
+
+          priceLinesBySaleBuyer
+              .putIfAbsent(saleBuyerId, () => [])
+              .add(Map<String, dynamic>.from(line));
+        }
+      }
+
+      if (!mounted) return;
+
+      final totalSales =
+          double.tryParse(transaction['total_sales']?.toString() ?? '0') ?? 0;
+
+      final commission =
+          double.tryParse(
+            transaction['commission_amount']?.toString() ?? '0',
+          ) ??
+          0;
+
+      final advanceLoan =
+          double.tryParse(transaction['advance_loan']?.toString() ?? '0') ?? 0;
+
+      final farmerAmount =
+          double.tryParse(transaction['farmer_amount']?.toString() ?? '0') ?? 0;
+
+      final bundles = transaction['total_bundles'] ?? 0;
+
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (context) {
+          return SafeArea(
+            child: DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.82,
+              minChildSize: 0.55,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Sale Details',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        transaction['code']?.toString() ??
+                            'No transaction code',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          children: [
+                            // ==================================================
+                            // MAIN SALE INFORMATION
+                            // ==================================================
+                            _DetailRow(
+                              label: 'Farmer',
+                              value:
+                                  transaction['farmer_name']?.toString() ??
+                                  'Unknown Farmer',
+                              bold: true,
+                            ),
+
+                            _DetailRow(
+                              label: 'Seller',
+                              value:
+                                  transaction['seller_name']?.toString() ??
+                                  'Unknown Seller',
+                            ),
+
+                            _DetailRow(
+                              label: 'Date',
+                              value: transaction['date']?.toString() ?? '-',
+                            ),
+
+                            _DetailRow(
+                              label: 'Kilo Sold',
+                              value: '$bundles kilo',
+                            ),
+
+                            const Divider(height: 28),
+
+                            // ==================================================
+                            // COMPLETE BUYER ENTRIES
+                            // ==================================================
+                            const Text(
+                              'Buyer Entries',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            if (saleBuyers.isEmpty)
+                              Text(
+                                'No buyer entries found for this sale.',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              )
+                            else
+                              ...saleBuyers.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final saleBuyer = entry.value;
+                                final saleBuyerId =
+                                    saleBuyer['id']?.toString() ?? '';
+                                final buyerId = saleBuyer['buyer_id']
+                                    ?.toString();
+
+                                final buyerName = buyerId == null
+                                    ? 'Unknown Buyer'
+                                    : buyerNames[buyerId] ?? 'Unknown Buyer';
+
+                                final buyerTotal =
+                                    double.tryParse(
+                                      saleBuyer['total_amount']?.toString() ??
+                                          '0',
+                                    ) ??
+                                    0;
+
+                                final paid =
+                                    double.tryParse(
+                                      saleBuyer['paid_amount']?.toString() ??
+                                          '0',
+                                    ) ??
+                                    0;
+
+                                final unpaid =
+                                    double.tryParse(
+                                      saleBuyer['unpaid_amount']?.toString() ??
+                                          '0',
+                                    ) ??
+                                    0;
+
+                                final lines =
+                                    priceLinesBySaleBuyer[saleBuyerId] ?? [];
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Card(
+                                    margin: EdgeInsets.zero,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${index + 1}. $buyerName',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 10),
+
+                                          if (lines.isEmpty)
+                                            Text(
+                                              'No price lines found.',
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            )
+                                          else
+                                            ...lines.map((line) {
+                                              final kilo =
+                                                  (line['bundle_count'] as num?)
+                                                      ?.toInt() ??
+                                                  0;
+                                              final price =
+                                                  double.tryParse(
+                                                    line['price_per_bundle']
+                                                            ?.toString() ??
+                                                        '0',
+                                                  ) ??
+                                                  0;
+                                              final lineTotal =
+                                                  double.tryParse(
+                                                    line['line_total']
+                                                            ?.toString() ??
+                                                        '0',
+                                                  ) ??
+                                                  (kilo * price);
+
+                                              return Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 3,
+                                                    ),
+                                                child: Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        '$kilo × ${price.toStringAsFixed(2)} Birr',
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      _formatAmount(lineTotal),
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
+
+                                          const Divider(height: 20),
+
+                                          _DetailRow(
+                                            label: 'Buyer Total',
+                                            value: _formatAmount(buyerTotal),
+                                            bold: true,
+                                          ),
+
+                                          _DetailRow(
+                                            label: 'Paid',
+                                            value: _formatAmount(paid),
+                                          ),
+
+                                          _DetailRow(
+                                            label: 'Unpaid',
+                                            value: _formatAmount(unpaid),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+
+                            const Divider(height: 28),
+
+                            // ==================================================
+                            // SALE TOTALS
+                            // ==================================================
+                            const Text(
+                              'Sale Totals',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            _DetailRow(
+                              label: 'Total Sales',
+                              value: _formatAmount(totalSales),
+                              bold: true,
+                            ),
+
+                            _DetailRow(
+                              label: 'Commission',
+                              value: _formatAmount(commission),
+                            ),
+
+                            _DetailRow(
+                              label: 'Advance Loan',
+                              value: _formatAmount(advanceLoan),
+                            ),
+
+                            _DetailRow(
+                              label: 'Farmer Amount',
+                              value: _formatAmount(farmerAmount),
+                              bold: true,
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // ==================================================
+                            // EDIT SALE BUTTON
+                            // ==================================================
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text(
+                                  'Edit Sale',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                onPressed: () async {
+                                  // 1. Close the sale details sheet
+                                  Navigator.of(context).pop();
+
+                                  // 2. Open the EditSaleScreen
+                                  final edited = await Navigator.of(context)
+                                      .push<bool>(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              EditSaleScreen(saleId: saleId),
+                                        ),
+                                      );
+
+                                  // 3. If edited successfully, refresh transactions list
+                                  if (edited == true && mounted) {
+                                    _loadTransactions();
+                                  }
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: const Text('Close'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sale Details',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-                const SizedBox(height: 6),
-
-                Text(
-                  transaction['code']?.toString() ??
-                      'No transaction code',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==================================================
-                // ADDITIONAL PEOPLE INFORMATION
-                // ==================================================
-
-                _DetailRow(
-                  label: 'Farmer',
-                  value:
-                      transaction['farmer_name']
-                          ?.toString() ??
-                      'Unknown Farmer',
-                  bold: true,
-                ),
-
-                _DetailRow(
-                  label: 'Seller',
-                  value:
-                      transaction['seller_name']
-                          ?.toString() ??
-                      'Unknown Seller',
-                ),
-
-                _DetailRow(
-                  label: 'Date',
-                  value:
-                      transaction['date']?.toString() ??
-                      '-',
-                ),
-
-                _DetailRow(
-                  label: 'Kilo Sold',
-                  value: '$bundles kilo',
-                ),
-
-                const Divider(height: 24),
-
-                _DetailRow(
-                  label: 'Total Sales',
-                  value:
-                      _formatAmount(totalSales),
-                  bold: true,
-                ),
-
-                _DetailRow(
-                  label: 'Commission',
-                  value:
-                      _formatAmount(commission),
-                ),
-
-                _DetailRow(
-                  label: 'Advance Loan',
-                  value:
-                      _formatAmount(advanceLoan),
-                ),
-
-                _DetailRow(
-                  label: 'Farmer Amount',
-                  value:
-                      _formatAmount(farmerAmount),
-                  bold: true,
-                ),
-
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load complete sale details: $e')),
+      );
+    }
   }
 
   // ============================================================
   // FARMER WITHDRAWAL DETAILS
   // ============================================================
 
-  Future<void> _showWithdrawalDetails(
-    Map<String, dynamic> transaction,
-  ) async {
+  Future<void> _showWithdrawalDetails(Map<String, dynamic> transaction) async {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Farmer Withdrawal',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
@@ -658,25 +886,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 _DetailRow(
                   label: 'Farmer',
                   value:
-                      transaction['farmer_name']
-                          ?.toString() ??
+                      transaction['farmer_name']?.toString() ??
                       'Unknown Farmer',
                   bold: true,
                 ),
 
                 _DetailRow(
                   label: 'Date',
-                  value:
-                      transaction['date']?.toString() ??
-                      '-',
+                  value: transaction['date']?.toString() ?? '-',
                 ),
 
                 _DetailRow(
                   label: 'Amount',
-                  value:
-                      _formatAmount(
-                        transaction['amount'],
-                      ),
+                  value: _formatAmount(transaction['amount']),
                   bold: true,
                 ),
 
@@ -712,23 +934,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Buyer Debt Payment',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
@@ -736,25 +949,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 _DetailRow(
                   label: 'Buyer',
                   value:
-                      transaction['buyer_name']
-                          ?.toString() ??
-                      'Unknown Buyer',
+                      transaction['buyer_name']?.toString() ?? 'Unknown Buyer',
                   bold: true,
                 ),
 
                 _DetailRow(
                   label: 'Date',
-                  value:
-                      transaction['date']?.toString() ??
-                      '-',
+                  value: transaction['date']?.toString() ?? '-',
                 ),
 
                 _DetailRow(
                   label: 'Amount Paid',
-                  value:
-                      _formatAmount(
-                        transaction['amount'],
-                      ),
+                  value: _formatAmount(transaction['amount']),
                   bold: true,
                 ),
 
@@ -790,23 +996,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Buyer Debt Adjustment',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
@@ -814,26 +1011,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 _DetailRow(
                   label: 'Buyer',
                   value:
-                      transaction['buyer_name']
-                          ?.toString() ??
-                      'Unknown Buyer',
+                      transaction['buyer_name']?.toString() ?? 'Unknown Buyer',
                   bold: true,
                 ),
 
                 _DetailRow(
                   label: 'Old Debt',
-                  value:
-                      _formatAmount(
-                        transaction['old_balance'],
-                      ),
+                  value: _formatAmount(transaction['old_balance']),
                 ),
 
                 _DetailRow(
                   label: 'New Debt',
-                  value:
-                      _formatAmount(
-                        transaction['new_balance'],
-                      ),
+                  value: _formatAmount(transaction['new_balance']),
                   bold: true,
                 ),
 
@@ -841,17 +1030,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                 _DetailRow(
                   label: 'Reason',
-                  value:
-                      transaction['reason']
-                          ?.toString() ??
-                      '-',
+                  value: transaction['reason']?.toString() ?? '-',
                 ),
 
                 _DetailRow(
                   label: 'Date',
-                  value:
-                      transaction['date']?.toString() ??
-                      '-',
+                  value: transaction['date']?.toString() ?? '-',
                 ),
 
                 const SizedBox(height: 16),
@@ -886,23 +1070,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Farmer Balance Adjustment',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
@@ -910,26 +1085,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 _DetailRow(
                   label: 'Farmer',
                   value:
-                      transaction['farmer_name']
-                          ?.toString() ??
+                      transaction['farmer_name']?.toString() ??
                       'Unknown Farmer',
                   bold: true,
                 ),
 
                 _DetailRow(
                   label: 'Old Balance',
-                  value:
-                      _formatAmount(
-                        transaction['old_balance'],
-                      ),
+                  value: _formatAmount(transaction['old_balance']),
                 ),
 
                 _DetailRow(
                   label: 'New Balance',
-                  value:
-                      _formatAmount(
-                        transaction['new_balance'],
-                      ),
+                  value: _formatAmount(transaction['new_balance']),
                   bold: true,
                 ),
 
@@ -937,17 +1105,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                 _DetailRow(
                   label: 'Reason',
-                  value:
-                      transaction['reason']
-                          ?.toString() ??
-                      '-',
+                  value: transaction['reason']?.toString() ?? '-',
                 ),
 
                 _DetailRow(
                   label: 'Date',
-                  value:
-                      transaction['date']?.toString() ??
-                      '-',
+                  value: transaction['date']?.toString() ?? '-',
                 ),
 
                 const SizedBox(height: 16),
@@ -973,11 +1136,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   // OPEN TRANSACTION
   // ============================================================
 
-  void _openTransaction(
-    Map<String, dynamic> transaction,
-  ) {
-    final type =
-        transaction['type']?.toString() ?? '';
+  void _openTransaction(Map<String, dynamic> transaction) {
+    final type = transaction['type']?.toString() ?? '';
 
     switch (type) {
       case 'Sale':
@@ -1008,13 +1168,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final transactions =
-        _filteredTransactions;
+    final transactions = _filteredTransactions;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transactions'),
-      ),
+      appBar: AppBar(title: const Text('Transactions')),
 
       body: Column(
         children: [
@@ -1023,12 +1180,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           // ========================================================
           // SEARCH
           // ========================================================
-
           Padding(
-            padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 12,
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: TextField(
               controller: _searchController,
               onChanged: (value) {
@@ -1037,28 +1190,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText:
-                    'Search transactions...',
-                prefixIcon:
-                    const Icon(Icons.search),
-                suffixIcon:
-                    _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: () {
-                              _searchController
-                                  .clear();
+                hintText: 'Search transactions...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _searchController.clear();
 
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.clear,
-                            ),
-                          ),
-                border:
-                    const OutlineInputBorder(),
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      ),
+                border: const OutlineInputBorder(),
               ),
             ),
           ),
@@ -1068,21 +1214,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           // ========================================================
           // FILTERS
           // ========================================================
-
           SizedBox(
             height: 45,
             child: ListView(
-              padding:
-                  const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-              scrollDirection:
-                  Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              scrollDirection: Axis.horizontal,
               children: [
                 _FilterChip(
                   label: 'All',
-                  selected:
-                      _selectedFilter == 'All',
+                  selected: _selectedFilter == 'All',
                   onSelected: () {
                     setState(() {
                       _selectedFilter = 'All';
@@ -1092,8 +1232,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                 _FilterChip(
                   label: 'Sale',
-                  selected:
-                      _selectedFilter == 'Sale',
+                  selected: _selectedFilter == 'Sale',
                   onSelected: () {
                     setState(() {
                       _selectedFilter = 'Sale';
@@ -1103,53 +1242,40 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                 _FilterChip(
                   label: 'Farmer Withdrawal',
-                  selected:
-                      _selectedFilter ==
-                      'Farmer Withdrawal',
+                  selected: _selectedFilter == 'Farmer Withdrawal',
                   onSelected: () {
                     setState(() {
-                      _selectedFilter =
-                          'Farmer Withdrawal';
+                      _selectedFilter = 'Farmer Withdrawal';
                     });
                   },
                 ),
 
                 _FilterChip(
                   label: 'Buyer Payment',
-                  selected:
-                      _selectedFilter ==
-                      'Buyer Payment',
+                  selected: _selectedFilter == 'Buyer Payment',
                   onSelected: () {
                     setState(() {
-                      _selectedFilter =
-                          'Buyer Payment';
+                      _selectedFilter = 'Buyer Payment';
                     });
                   },
                 ),
 
                 _FilterChip(
                   label: 'Debt Adjustment',
-                  selected:
-                      _selectedFilter ==
-                      'Debt Adjustment',
+                  selected: _selectedFilter == 'Debt Adjustment',
                   onSelected: () {
                     setState(() {
-                      _selectedFilter =
-                          'Debt Adjustment';
+                      _selectedFilter = 'Debt Adjustment';
                     });
                   },
                 ),
 
                 _FilterChip(
-                  label:
-                      'Farmer Balance Adjustment',
-                  selected:
-                      _selectedFilter ==
-                      'Farmer Balance Adjustment',
+                  label: 'Farmer Balance Adjustment',
+                  selected: _selectedFilter == 'Farmer Balance Adjustment',
                   onSelected: () {
                     setState(() {
-                      _selectedFilter =
-                          'Farmer Balance Adjustment';
+                      _selectedFilter = 'Farmer Balance Adjustment';
                     });
                   },
                 ),
@@ -1162,315 +1288,168 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           // ========================================================
           // TRANSACTION LIST
           // ========================================================
-
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(),
-                  )
+                ? const Center(child: CircularProgressIndicator())
                 : transactions.isEmpty
-                    ? RefreshIndicator(
-                        onRefresh:
-                            _loadTransactions,
-                        child: ListView(
-                          children: const [
-                            SizedBox(height: 180),
-                            Center(
-                              child: Text(
-                                'No transactions found.',
+                ? RefreshIndicator(
+                    onRefresh: _loadTransactions,
+                    child: ListView(
+                      children: const [
+                        SizedBox(height: 180),
+                        Center(child: Text('No transactions found.')),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadTransactions,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: transactions.length,
+                      itemBuilder: (context, index) {
+                        final transaction = transactions[index];
+
+                        final type =
+                            transaction['type']?.toString() ?? 'Transaction';
+
+                        final amount = transaction['amount'];
+
+                        final farmerName = transaction['farmer_name']
+                            ?.toString();
+
+                        final sellerName = transaction['seller_name']
+                            ?.toString();
+
+                        final buyerName = transaction['buyer_name']?.toString();
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            onTap: () {
+                              _openTransaction(transaction);
+                            },
+
+                            leading: CircleAvatar(
+                              child: Icon(_transactionIcon(type)),
+                            ),
+
+                            title: Text(
+                              type,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh:
-                            _loadTransactions,
-                        child: ListView.builder(
-                          padding:
-                              const EdgeInsets.all(
-                                12,
-                              ),
-                          itemCount:
-                              transactions.length,
-                          itemBuilder:
-                              (context, index) {
-                            final transaction =
-                                transactions[index];
 
-                            final type =
-                                transaction['type']
-                                    ?.toString() ??
-                                'Transaction';
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // ==================================================
+                                // SALE
+                                // ==================================================
+                                if (type == 'Sale') ...[
+                                  if (farmerName != null)
+                                    Text('Farmer: $farmerName'),
 
-                            final amount =
-                                transaction['amount'];
+                                  if (sellerName != null)
+                                    Text('Seller: $sellerName'),
 
-                            final farmerName =
-                                transaction[
-                                        'farmer_name']
-                                    ?.toString();
+                                  Text(transaction['code']?.toString() ?? ''),
 
-                            final sellerName =
-                                transaction[
-                                        'seller_name']
-                                    ?.toString();
-
-                            final buyerName =
-                                transaction[
-                                        'buyer_name']
-                                    ?.toString();
-
-                            return Card(
-                              margin:
-                                  const EdgeInsets
-                                      .only(
-                                    bottom: 10,
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
                                   ),
-                              child: ListTile(
-                                onTap: () {
-                                  _openTransaction(
-                                    transaction,
-                                  );
-                                },
 
-                                leading:
-                                    CircleAvatar(
-                                  child: Icon(
-                                    _transactionIcon(
-                                      type,
-                                    ),
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ]
+                                // ==================================================
+                                // FARMER WITHDRAWAL
+                                // ==================================================
+                                else if (type == 'Farmer Withdrawal') ...[
+                                  if (farmerName != null)
+                                    Text('Farmer: $farmerName'),
+
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
+                                  ),
+
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ]
+                                // ==================================================
+                                // BUYER PAYMENT
+                                // ==================================================
+                                else if (type == 'Buyer Payment') ...[
+                                  if (buyerName != null)
+                                    Text('Buyer: $buyerName'),
+
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
+                                  ),
+
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ]
+                                // ==================================================
+                                // DEBT ADJUSTMENT
+                                // ==================================================
+                                else if (type == 'Debt Adjustment') ...[
+                                  if (buyerName != null)
+                                    Text('Buyer: $buyerName'),
+
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
+                                  ),
+
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ]
+                                // ==================================================
+                                // FARMER BALANCE ADJUSTMENT
+                                // ==================================================
+                                else if (type ==
+                                    'Farmer Balance Adjustment') ...[
+                                  if (farmerName != null)
+                                    Text('Farmer: $farmerName'),
+
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
+                                  ),
+
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ]
+                                // ==================================================
+                                // FALLBACK
+                                // ==================================================
+                                else ...[
+                                  Text(transaction['code']?.toString() ?? ''),
+
+                                  Text(
+                                    transaction['details']?.toString() ?? '',
+                                  ),
+
+                                  Text(transaction['date']?.toString() ?? ''),
+                                ],
+                              ],
+                            ),
+
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _formatAmount(amount),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
 
-                                title: Text(
-                                  type,
-                                  style:
-                                      const TextStyle(
-                                    fontWeight:
-                                        FontWeight.w600,
-                                  ),
-                                ),
+                                const SizedBox(height: 3),
 
-                                subtitle: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .start,
-                                  children: [
-                                    // ==================================================
-                                    // SALE
-                                    // ==================================================
-
-                                    if (type ==
-                                        'Sale') ...[
-                                      if (farmerName !=
-                                          null)
-                                        Text(
-                                          'Farmer: $farmerName',
-                                        ),
-
-                                      if (sellerName !=
-                                          null)
-                                        Text(
-                                          'Seller: $sellerName',
-                                        ),
-
-                                      Text(
-                                        transaction[
-                                                    'code']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ]
-
-                                    // ==================================================
-                                    // FARMER WITHDRAWAL
-                                    // ==================================================
-
-                                    else if (type ==
-                                        'Farmer Withdrawal') ...[
-                                      if (farmerName !=
-                                          null)
-                                        Text(
-                                          'Farmer: $farmerName',
-                                        ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ]
-
-                                    // ==================================================
-                                    // BUYER PAYMENT
-                                    // ==================================================
-
-                                    else if (type ==
-                                        'Buyer Payment') ...[
-                                      if (buyerName !=
-                                          null)
-                                        Text(
-                                          'Buyer: $buyerName',
-                                        ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ]
-
-                                    // ==================================================
-                                    // DEBT ADJUSTMENT
-                                    // ==================================================
-
-                                    else if (type ==
-                                        'Debt Adjustment') ...[
-                                      if (buyerName !=
-                                          null)
-                                        Text(
-                                          'Buyer: $buyerName',
-                                        ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ]
-
-                                    // ==================================================
-                                    // FARMER BALANCE ADJUSTMENT
-                                    // ==================================================
-
-                                    else if (type ==
-                                        'Farmer Balance Adjustment') ...[
-                                      if (farmerName !=
-                                          null)
-                                        Text(
-                                          'Farmer: $farmerName',
-                                        ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ]
-
-                                    // ==================================================
-                                    // FALLBACK
-                                    // ==================================================
-
-                                    else ...[
-                                      Text(
-                                        transaction[
-                                                    'code']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'details']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-
-                                      Text(
-                                        transaction[
-                                                    'date']
-                                                ?.toString() ??
-                                            '',
-                                      ),
-                                    ],
-                                  ],
-                                ),
-
-                                trailing: Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment
-                                          .center,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .end,
-                                  children: [
-                                    Text(
-                                      _formatAmount(
-                                        amount,
-                                      ),
-                                      style:
-                                          const TextStyle(
-                                        fontWeight:
-                                            FontWeight
-                                                .bold,
-                                      ),
-                                    ),
-
-                                    const SizedBox(
-                                      height: 3,
-                                    ),
-
-                                    const Icon(
-                                      Icons
-                                          .chevron_right,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                                const Icon(Icons.chevron_right, size: 20),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -1496,20 +1475,11 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-            ),
-          ),
+          Text(label, style: TextStyle(color: Colors.grey.shade600)),
 
           const SizedBox(width: 20),
 
@@ -1518,9 +1488,7 @@ class _DetailRow extends StatelessWidget {
               value,
               textAlign: TextAlign.end,
               style: TextStyle(
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.normal,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ),
@@ -1548,8 +1516,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
         label: Text(label),
         selected: selected,

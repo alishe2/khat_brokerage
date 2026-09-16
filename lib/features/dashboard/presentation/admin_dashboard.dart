@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:khat_brokerage/features/farmers/presentation/farmers_screen.dart';
 import 'package:khat_brokerage/features/sales/presentation/record_sale_screen.dart';
+import 'package:khat_brokerage/features/sales/presentation/todays_sales_by_buyer_screen.dart';
 import 'package:khat_brokerage/features/buyers/presentation/buyers_screen.dart';
 import 'package:khat_brokerage/features/sellers/presentation/sellers_screen.dart';
 import 'package:khat_brokerage/features/accountant/presentation/accountant_screen.dart';
@@ -31,6 +32,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   int _kiloSoldToday = 0;
 
+  double _totalSalesToday = 0;
   double _commissionToday = 0;
   double _buyerPaidToday = 0;
   double _buyerUnpaidToday = 0;
@@ -72,11 +74,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
       // ============================================================
       // FIRE ALL NINE QUERIES AT ONCE
-      //
-      // None of these depend on each other's results — only on
-      // `todayString` / `userId`, both already known above. Instead
-      // of nine sequential round trips, we start them all at once
-      // and wait for the slowest one, not the sum of all nine.
       // ============================================================
 
       final results = await Future.wait<dynamic>([
@@ -96,10 +93,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
             .select('total_bundles, commission_amount')
             .eq('sale_date', todayString),
 
-        // 2: today's buyer payments from today's sales
+        // 2: today's buyer payments from today's sales — now also
+        // pulling total_amount, the gross per-buyer sale figure
+        // before any commission/advance deduction, so we can sum
+        // it into today's total sales without a separate query.
         _supabase
             .from('sale_buyers')
-            .select('paid_amount, unpaid_amount, sales!inner(sale_date)')
+            .select(
+              'total_amount, paid_amount, unpaid_amount, sales!inner(sale_date)',
+            )
             .eq('sales.sale_date', todayString),
 
         // 3: paid from old debt
@@ -178,13 +180,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
       }
 
       // ============================================================
-      // TODAY'S BUYER PAYMENTS FROM TODAY'S SALES
+      // TODAY'S TOTAL SALES + BUYER PAYMENTS FROM TODAY'S SALES
+      //
+      // total_amount is the gross figure per buyer per sale — no
+      // commission or advance-loan deduction applied. Summed across
+      // every buyer (including Magala, which is just a normal row
+      // in `buyers` with is_magala = true) this gives the day's
+      // total gross sales.
       // ============================================================
 
+      double totalSales = 0;
       double buyerPaid = 0;
       double buyerUnpaid = 0;
 
       for (final buyer in saleBuyerData) {
+        totalSales += (buyer['total_amount'] as num?)?.toDouble() ?? 0;
         buyerPaid += (buyer['paid_amount'] as num?)?.toDouble() ?? 0;
         buyerUnpaid += (buyer['unpaid_amount'] as num?)?.toDouble() ?? 0;
       }
@@ -268,6 +278,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         _kiloSoldToday = kiloSold;
 
+        _totalSalesToday = totalSales;
         _commissionToday = commission;
         _buyerPaidToday = buyerPaid;
         _buyerUnpaidToday = buyerUnpaid;
@@ -377,6 +388,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
+                      // Total Sales is intentionally featured full-width
+                      // and placed first — it's the top-line gross figure
+                      // everything else on this screen breaks down from.
+                      // Tappable: opens the per-buyer breakdown, where
+                      // Magala shows up like any other buyer.
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: _FeaturedDashboardCard(
+                          title: 'Total Sales',
+                          value: _isLoading
+                              ? '...'
+                              : _money(_totalSalesToday),
+                          icon: Icons.trending_up_rounded,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const TodaysSalesByBuyerScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
                       SizedBox(
                         width: cardWidth,
                         child: _DashboardCard(
@@ -410,7 +445,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         width: cardWidth,
                         child: _DashboardCard(
                           title: 'Buyer Unpaid',
-                          value: _isLoading ? '...' : _money(_buyerUnpaidToday),
+                          value: _isLoading
+                              ? '...'
+                              : _money(_buyerUnpaidToday),
                           icon: Icons.money_off_outlined,
                         ),
                       ),
@@ -454,10 +491,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
               // ======================================================
               // WORKER FEES, OTHER EXPENSES & ADMIN PROFIT
-              //
-              // Now built with _MoneyMovementTile in the same visual
-              // language as the cards above (same radius, same
-              // icon-box treatment) instead of a bare default ListTile.
               // ======================================================
               _MoneyMovementTile(
                 title: 'Worker Fees',
@@ -739,80 +772,95 @@ class _DashboardCard extends StatelessWidget {
 }
 
 // ======================================================================
-// FEATURED COMMISSION CARD
+// FEATURED DASHBOARD CARD
+//
+// Now optionally tappable — an onTap makes it wrap its content in an
+// InkWell for a ripple, exactly like _ActionCard does. Commission
+// doesn't pass one (nothing to drill into), Total Sales does.
 // ======================================================================
 
 class _FeaturedDashboardCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _FeaturedDashboardCard({
     required this.title,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final content = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_kCardRadius),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 28, color: colorScheme.primary),
+          ),
+
+          const SizedBox(width: 16),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (onTap != null)
+            Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+        ],
+      ),
+    );
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_kCardRadius),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kCardRadius),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.10),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, size: 28, color: colorScheme.primary),
-            ),
-
-            const SizedBox(width: 16),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: onTap == null
+          ? content
+          : InkWell(onTap: onTap, child: content),
     );
   }
 }
