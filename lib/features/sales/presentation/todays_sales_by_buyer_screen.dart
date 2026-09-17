@@ -3,30 +3,37 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 const double _kCardRadius = 16;
 
-class TodaysSalesByBuyerScreen extends StatefulWidget {
-  const TodaysSalesByBuyerScreen({super.key});
+class SalesByBuyerScreen extends StatefulWidget {
+  final String? startDate; // 'yyyy-MM-dd'; null (with endDate null) = all time
+  final String? endDate;
+  final String title;
+
+  const SalesByBuyerScreen({
+    super.key,
+    this.startDate,
+    this.endDate,
+    this.title = 'Sales by Buyer',
+  });
 
   @override
-  State<TodaysSalesByBuyerScreen> createState() =>
-      _TodaysSalesByBuyerScreenState();
+  State<SalesByBuyerScreen> createState() => _SalesByBuyerScreenState();
 }
 
-class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
+class _SalesByBuyerScreenState extends State<SalesByBuyerScreen> {
   final _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
   double _grandTotal = 0;
 
-  // Each entry: {groupName, isMagala, total}
   List<Map<String, dynamic>> _buyerTotals = [];
 
   @override
   void initState() {
     super.initState();
-    _loadTodaysSalesByBuyer();
+    _loadSalesByBuyer();
   }
 
-  Future<void> _loadTodaysSalesByBuyer() async {
+  Future<void> _loadSalesByBuyer() async {
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -34,24 +41,31 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
     }
 
     try {
-      final today = DateTime.now();
+      final hasDateFilter = widget.startDate != null && widget.endDate != null;
+      final isSingleDate =
+          hasDateFilter && widget.startDate == widget.endDate;
 
-      final todayString =
-          '${today.year.toString().padLeft(4, '0')}-'
-          '${today.month.toString().padLeft(2, '0')}-'
-          '${today.day.toString().padLeft(2, '0')}';
-
-      // Magala requires no special handling here — it's simply a row
-      // in `buyers` with is_magala = true, so it comes back through
-      // this same buyer_id grouping like every other buyer.
-      final data = await _supabase
+      var query = _supabase
           .from('sale_buyers')
           .select(
             'buyer_id, total_amount, sales!inner(sale_date), buyers(group_name, is_magala)',
-          )
-          .eq('sales.sale_date', todayString);
+          );
 
-      // Group and sum total_amount per buyer_id.
+      if (hasDateFilter) {
+        if (isSingleDate) {
+          query = query.eq('sales.sale_date', widget.startDate!);
+        } else {
+          query = query
+              .gte('sales.sale_date', widget.startDate!)
+              .lte('sales.sale_date', widget.endDate!);
+        }
+      }
+
+      final data = await query;
+
+      // Group and sum total_amount per buyer_id. Magala needs no
+      // special handling — it's a normal buyers row with is_magala
+      // = true, so it groups in alongside everyone else.
       final Map<String, Map<String, dynamic>> grouped = {};
 
       for (final row in data) {
@@ -100,9 +114,9 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not load today\'s sales: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not load sales: $e')));
     }
   }
 
@@ -115,19 +129,15 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Today\'s Sales by Buyer')),
+      appBar: AppBar(title: Text(widget.title)),
       body: RefreshIndicator(
-        onRefresh: _loadTodaysSalesByBuyer,
+        onRefresh: _loadSalesByBuyer,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ==================================================
-              // GRAND TOTAL — same gross figure as the dashboard's
-              // Total Sales card, so the two always agree.
-              // ==================================================
               Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -157,7 +167,7 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Total Sales Today',
+                              'Total Sales',
                               style: TextStyle(
                                 color: colorScheme.onSurfaceVariant,
                                 fontSize: 13,
@@ -189,9 +199,6 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // PER-BUYER BREAKDOWN
-              // ==================================================
               if (_isLoading)
                 const Center(
                   child: Padding(
@@ -203,7 +210,7 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Text(
-                    'No sales recorded today yet.',
+                    'No sales recorded for this period.',
                     style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
                 )
@@ -265,10 +272,10 @@ class _TodaysSalesByBuyerScreenState extends State<TodaysSalesByBuyerScreen> {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: colorScheme.primary.withValues(
-                                          alpha: 0.10,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
+                                        color: colorScheme.primary
+                                            .withValues(alpha: 0.10),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         'Magala',

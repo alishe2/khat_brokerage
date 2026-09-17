@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:khat_brokerage/features/sales/presentation/todays_sales_by_buyer_screen.dart';
+
 // Same shared radius used on Admin Dashboard
 const double _kCardRadius = 16;
 
@@ -522,12 +524,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 children: [
                                   // Total Sales (Featured Card) — gross
                                   // figure, no commission/advance deducted.
+                                  // Tappable: opens the per-buyer
+                                  // breakdown for whichever period is
+                                  // currently selected.
                                   SizedBox(
                                     width: constraints.maxWidth,
                                     child: _ReportFeaturedCard(
                                       title: 'Total Sales',
                                       value: _money(_totalSales),
                                       icon: Icons.trending_up_rounded,
+                                      onTap: () {
+                                        final range = _getDateRange();
+
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => SalesByBuyerScreen(
+                                              startDate: range.start,
+                                              endDate: range.end,
+                                              title:
+                                                  '${_getPeriodLabel()} — By Buyer',
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
 
@@ -580,7 +599,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     ),
                                   ),
 
-                                  // Commission (Featured Card)
+                                  // Commission (Featured Card) — no onTap,
+                                  // stays non-interactive.
                                   SizedBox(
                                     width: constraints.maxWidth,
                                     child: _ReportFeaturedCard(
@@ -747,75 +767,92 @@ class _ReportDashboardCard extends StatelessWidget {
   }
 }
 
+// ======================================================================
+// FEATURED REPORT CARD — now optionally tappable. An onTap wraps the
+// content in an InkWell for a ripple and shows a chevron, exactly like
+// admin_dashboard.dart's _FeaturedDashboardCard does. Commission passes
+// no onTap and stays non-interactive; Total Sales passes one.
+// ======================================================================
+
 class _ReportFeaturedCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _ReportFeaturedCard({
     required this.title,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final content = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_kCardRadius),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.10),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 28, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onTap != null)
+            Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+        ],
+      ),
+    );
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_kCardRadius),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_kCardRadius),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.10),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, size: 28, color: colorScheme.primary),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
     );
   }
 }

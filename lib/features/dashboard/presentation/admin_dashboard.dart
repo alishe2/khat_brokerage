@@ -405,7 +405,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) =>
-                                    const TodaysSalesByBuyerScreen(),
+                                    const SalesByBuyerScreen(),
                               ),
                             );
                           },
