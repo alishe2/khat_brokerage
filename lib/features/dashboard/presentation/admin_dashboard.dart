@@ -397,15 +397,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         width: constraints.maxWidth,
                         child: _FeaturedDashboardCard(
                           title: 'Total Sales',
-                          value: _isLoading
-                              ? '...'
-                              : _money(_totalSalesToday),
+                          value: _isLoading ? '...' : _money(_totalSalesToday),
                           icon: Icons.trending_up_rounded,
                           onTap: () async {
+                            final today = DateTime.now();
+                            final todayString =
+                                '${today.year.toString().padLeft(4, '0')}-'
+                                '${today.month.toString().padLeft(2, '0')}-'
+                                '${today.day.toString().padLeft(2, '0')}';
+
                             await Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    const SalesByBuyerScreen(),
+                                builder: (_) => SalesByBuyerScreen(
+                                  startDate: todayString,
+                                  endDate: todayString,
+                                  title: "Today's Sales by Buyer",
+                                ),
                               ),
                             );
                           },
@@ -445,9 +452,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         width: cardWidth,
                         child: _DashboardCard(
                           title: 'Buyer Unpaid',
-                          value: _isLoading
-                              ? '...'
-                              : _money(_buyerUnpaidToday),
+                          value: _isLoading ? '...' : _money(_buyerUnpaidToday),
                           icon: Icons.money_off_outlined,
                         ),
                       ),
@@ -858,9 +863,7 @@ class _FeaturedDashboardCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_kCardRadius),
       ),
-      child: onTap == null
-          ? content
-          : InkWell(onTap: onTap, child: content),
+      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
     );
   }
 }
