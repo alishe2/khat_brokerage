@@ -1,17 +1,22 @@
-# khat_brokerage
+# KhatBrokerage
 
-A new Flutter project.
+KhatBrokerage is a Flutter mobile application designed to support khat brokerage business operations.
 
-## Getting Started
+### Technologies
+- Flutter and Dart
+- Supabase
+- GitHub
 
-This project is a starting point for a Flutter application.
+### Main Features
+- Authentication and role-based access
+- Admin and accountant dashboards
+- Transaction, expense, and report management
+- Profile and language management
 
-A few resources to get you started if this is your first Flutter project:
+### Demo Video
+The project demonstration video is available in the [`video/`](./video/) folder.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+**Video:** `video/KhatBrokerage_Demo.mp4`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Source Code
+[View KhatBrokerage on GitHub](https://github.com/alishe2/khat_brokerage)
